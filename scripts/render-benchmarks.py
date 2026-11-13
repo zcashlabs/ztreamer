@@ -23,11 +23,12 @@ HARDWARE=json.loads((O/'hardware.json').read_text())
 METADATA=json.loads((O/'metadata.json').read_text())
 V=['86bf4b0-limit16','v0.0.1','zaino-d27ec930']
 L=dict(zip(V,['ztreamer v0.1.0','ztreamer v0.0.1','zaino d27ec930']))
-# Dark categorical slots 1-3, validated all-pairs on #171415 (CVD and normal vision).
-C=dict(zip(V,['#3987e5','#d95926','#199e70']))
-INK='#f4f4f4'
+# Colours come from the :root tokens of site.css, so the plots and the site share one palette.
+TOK=dict(re.findall(r'--([a-z0-9-]+):(#[0-9a-fA-F]{6})',(SITE/'site.css').read_text().split('}',1)[0]))
+C=dict(zip(V,[TOK['series-v010'],TOK['series-v001'],TOK['series-zaino']]))
+INK,DIM,BG=TOK['ink'],TOK['dim'],TOK['bg']
 if ZT_ONLY: V=V[:2]
-plt.rcParams.update({'font.family':'DejaVu Sans Mono','font.size':10,'axes.titlesize':12,'axes.titleweight':'normal','axes.titlepad':12,'text.color':'#f4f4f4','axes.labelcolor':'#a3a3a3','xtick.color':'#a3a3a3','ytick.color':'#a3a3a3','axes.edgecolor':'#4a4445','axes.spines.top':True,'axes.spines.right':True,'figure.facecolor':'#171415','axes.facecolor':'#171415','savefig.facecolor':'#171415','grid.color':'#ffffff','grid.alpha':.07,'legend.facecolor':'#171415','legend.edgecolor':'#363132','svg.fonttype':'none'})
+plt.rcParams.update({'font.family':'DejaVu Sans Mono','font.size':10,'axes.titlesize':12,'axes.titleweight':'normal','axes.titlepad':12,'text.color':INK,'axes.labelcolor':DIM,'xtick.color':DIM,'ytick.color':DIM,'axes.edgecolor':TOK['chart-axis'],'axes.spines.top':True,'axes.spines.right':True,'figure.facecolor':BG,'axes.facecolor':BG,'savefig.facecolor':BG,'grid.color':INK,'grid.alpha':.07,'legend.facecolor':BG,'legend.edgecolor':TOK['rule'],'svg.fonttype':'none'})
 
 def row(v,suite,case=None,clients=None):return next(x for x in ROWS if x['label']==v and x['suite']==suite and (case is None or x['case']==case) and (clients is None or int(x['clients'])==clients))
 def val(r,k,scale=1):return float(r[k])/scale if r['status']=='ok' and r[k] else np.nan
@@ -70,7 +71,7 @@ fig.subplots_adjust(left=.29,right=.97,bottom=.09,top=.87,wspace=.18)
 for ax,metric,title in zip(a,['complete_p50_us','complete_p99_us'],['p50 · median ↓','p99 · tail ↓']):
  for i,c in enumerate(cases):
   ys=[val(row(v,'latency',c),metric,1000) for v in V];valid=[y for y in ys if np.isfinite(y)]
-  if valid:ax.plot([min(valid),max(valid)],[i,i],color='#4f494a',lw=1.3)
+  if valid:ax.plot([min(valid),max(valid)],[i,i],color=TOK['faint'],lw=1.3)
   for v,y in zip(V,ys):
    if np.isfinite(y):ax.scatter(y,i,color=C[v],s=40)
  ax.set_xscale('log');ax.set_yticks(range(len(cases)),cases if ax is a[0] else ['']*len(cases));ax.invert_yaxis();ax.grid(axis='x');ax.set_title(title,loc='left');ax.set_xlabel('Milliseconds · log scale')
@@ -122,7 +123,7 @@ if ZT_ONLY:
  a[1].set_yticks(range(len(index_runs)),list(index_runs));a[1].set_xlim(0,max(r['ready_s'] for r in INDEX_RUNS)*1.25)
  a[1].set_ylim(-.6,1.8)
  style(a[1],'Startup through serving');a[1].set_xlabel('Seconds since process start')
- a[1].legend(handles=[plt.Rectangle((0,0),1,1,color='#f4f4f4',alpha=.35,label='Startup / readiness'),plt.Rectangle((0,0),1,1,color='#f4f4f4',label='Historical indexing')],loc='upper right',fontsize=8)
+ a[1].legend(handles=[plt.Rectangle((0,0),1,1,color=INK,alpha=.35,label='Startup / readiness'),plt.Rectangle((0,0),1,1,color=INK,label='Historical indexing')],loc='upper right',fontsize=8)
 save(fig,'historical-indexing')
 
 fig,a=figgrid('Resources during historical indexing','',nrows=1 if ZT_ONLY else 2,ncols=3,size=(16,6.5 if ZT_ONLY else 11))

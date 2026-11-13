@@ -1,8 +1,12 @@
 /* Zcash Labs "Sealed" identity: monochrome UI, Zcash gold only inside the mark. */
+/* scripts/render-benchmarks.py reads these tokens for the plots: keep one declaration each. */
 :root{
-  --bg:#171415;--panel:#211d1e;--muted:#2a2627;--rule:#363132;
-  --ink:#f4f4f4;--dim:#a3a3a3;--faint:#6f6a6b;--gold:var(--ink);
-  --ztreamer:#3987e5;--zaino:#199e70;--zinder:#c98500; /* dataviz dark slots, validated on --bg */
+  color-scheme:dark;
+  --bg:#171415;--panel:#211d1e;--rule:#363132;--chart-axis:#4a4445;
+  --ink:#f4f4f4;--dim:#a3a3a3;--faint:#6f6a6b;--text-emphasis:var(--ink);
+  /* One fixed colour per benchmarked system. Dark categorical slots, validated all-pairs on --bg
+     for colour-vision deficiency, normal vision and 3:1 contrast. Gold stays reserved for the mark. */
+  --series-v010:#3987e5;--series-v001:#d95926;--series-zaino:#199e70;--series-zinder:#9085e9;
   --display:"Sora",ui-sans-serif,system-ui,sans-serif;
   --sans:"Manrope",ui-sans-serif,system-ui,sans-serif;
   --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,monospace;
@@ -54,11 +58,11 @@ h1{font:800 clamp(3.25rem,10vw,7.5rem)/1 var(--display);letter-spacing:-.035em}
 .bars .g{margin-top:3rem;padding-top:2rem;border-top:1px solid var(--rule)}
 .bars .n{margin:2rem 0 0;color:var(--dim);font-size:.8rem;line-height:1.8}
 .bars .n a{color:var(--ink);text-decoration:underline;text-decoration-color:var(--faint)}
-.bar i{display:block;font-style:normal;height:2.1rem;min-width:3px;background:var(--zinder);border-radius:2px;position:relative}
+.bar i{display:block;font-style:normal;height:2.1rem;min-width:3px;background:var(--series-zinder);border-radius:2px;position:relative}
 .bar i::after{content:attr(data-v);position:absolute;left:calc(100% + .8rem);top:50%;translate:0 -50%;white-space:nowrap;color:var(--ink)}
 .bar.k{color:var(--ink)}
-.bar.k i{background:var(--ztreamer)}
-.bar.zaino i{background:var(--zaino)}
+.bar.k i{background:var(--series-v001)}
+.bar.zaino i{background:var(--series-zaino)}
 
 footer{border-top:1px solid var(--rule)}
 footer .wrap{padding:2rem 0 2.5rem;display:flex;justify-content:space-between;align-items:center;gap:1.5rem;flex-wrap:wrap;font:500 .6875rem/1.6 var(--mono);letter-spacing:.22em;text-transform:uppercase;color:var(--dim)}

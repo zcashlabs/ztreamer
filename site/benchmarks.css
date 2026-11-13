@@ -1,25 +1,25 @@
 .benchmarks-page [hidden]{display:none!important}
 .benchmarks-page header nav{flex-wrap:wrap}
-.benchmarks-page header [aria-current]{color:var(--gold)}
+.benchmarks-page header [aria-current]{color:var(--text-emphasis)}
 .benchmark-report{padding:4rem 0 5rem}
 .benchmark-report h1{font-size:clamp(2.4rem,6vw,4.5rem);line-height:1.05;margin:1rem 0 1.5rem}
 .benchmark-report h2{font:700 clamp(1.35rem,3vw,1.8rem)/1.2 var(--display);letter-spacing:-.02em;margin-bottom:1.25rem}
 .benchmark-report p{margin:.8rem 0;line-height:1.65}
 .benchmark-report a{text-decoration:underline;text-underline-offset:.2em}
-.benchmark-report a:hover{color:var(--gold)}
+.benchmark-report a:hover{color:var(--text-emphasis)}
 .benchmark-report .eyebrow{font:500 .6875rem/1.6 var(--mono);color:var(--dim);letter-spacing:.22em;text-transform:uppercase}
 .benchmark-report .sub{color:var(--dim);max-width:65rem}
 .benchmark-report .sub strong{color:var(--ink);font-weight:500}
 .benchmark-report .compare-toggle{display:flex;align-items:center;gap:.8rem;width:fit-content;max-width:100%;padding:1rem;border:1px solid var(--rule);border-radius:var(--radius);background:var(--panel);cursor:pointer;margin:1.5rem 0;font:.85rem/1.5 var(--mono)}
-.benchmark-report .compare-toggle input{width:1.1rem;height:1.1rem;accent-color:var(--gold);flex-shrink:0}
-.benchmark-report .compare-toggle:focus-within{outline:2px solid var(--gold);outline-offset:3px}
+.benchmark-report .compare-toggle input{width:1.1rem;height:1.1rem;accent-color:var(--text-emphasis);flex-shrink:0}
+.benchmark-report .compare-toggle:focus-within{outline:2px solid var(--text-emphasis);outline-offset:3px}
 .benchmark-report .report-nav{display:flex;gap:1.25rem;flex-wrap:wrap;padding:1rem 0;border-bottom:1px solid var(--rule);font:500 .6875rem/1.6 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
 .benchmark-report .report-nav a{text-decoration:none}
 .benchmark-report .report-nav a:hover{color:var(--ink)}
 .benchmark-report .cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:2rem 0;border-bottom:1px solid var(--rule)}
 .benchmark-report .card{padding:1.5rem 1.25rem 1.75rem 0;font:.8rem/1.6 var(--mono)}
 .benchmark-report .card+.card{border-left:1px solid var(--rule);padding-left:1.25rem}
-.benchmark-report .card b{display:block;font:700 clamp(1.8rem,3vw,3rem)/1.15 var(--display);letter-spacing:-.03em;margin:.75rem 0;color:var(--gold)}
+.benchmark-report .card b{display:block;font:700 clamp(1.8rem,3vw,3rem)/1.15 var(--display);letter-spacing:-.03em;margin:.75rem 0;color:var(--text-emphasis)}
 .benchmark-report .card span{color:var(--dim);font-size:.72rem}
 .benchmark-report .note{border-left:2px solid var(--rule);padding:.5rem 1rem;color:var(--dim);font-size:.85rem}
 .benchmark-report section{margin:3rem 0}
