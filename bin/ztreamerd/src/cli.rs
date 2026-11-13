@@ -10,8 +10,8 @@ use std::{
 use clap::{Args, Parser, Subcommand};
 use eyre::{Result, eyre};
 use ztreamer_daemon::{
-    DaemonConfig, IndexConfig, Mode, RemoteConfig, ReplicaSource, ServerConfig, SyncConfig,
-    TelemetryConfig, TlsFiles, run_daemon,
+    DaemonConfig, GrpcLimits, IndexConfig, Mode, RemoteConfig, ReplicaSource, ServerConfig,
+    SyncConfig, TelemetryConfig, TlsFiles, run_daemon,
 };
 use ztreamer_remote::NodeUrl;
 use ztreamer_sync::pipeline::PipelineConfig;
@@ -102,6 +102,17 @@ struct DaemonArgs {
     #[arg(long, default_value = "127.0.0.1:9067")]
     grpc_listen: SocketAddr,
 
+    /// Maximum concurrent HTTP/2 streams (gRPC requests) of each client connection to the gRPC
+    /// listener (SETTINGS_MAX_CONCURRENT_STREAMS). 0 sets no limit. As in lightwalletd.
+    #[arg(long, default_value_t = GrpcLimits::DEFAULT_MAX_CONCURRENT_STREAMS.get())]
+    grpc_max_concurrent_streams: u32,
+
+    /// Maximum GetBlockRange and GetBlockRangeNullifiers streams served at a time, over all
+    /// connections. A request waits up to 10 s for a slot, then fails with UNAVAILABLE. 0 sets no
+    /// limit. lightwalletd defaults it to 200.
+    #[arg(long, default_value_t = GrpcLimits::DEFAULT_MAX_CONCURRENT_RANGES.get())]
+    max_concurrent_blockrange: usize,
+
     /// Prometheus metrics listener.
     #[arg(long, default_value = "127.0.0.1:9999")]
     metrics_listen: SocketAddr,
@@ -171,6 +182,10 @@ impl TryFrom<DaemonArgs> for DaemonConfig {
             tls,
             metrics_listen: args.metrics_listen,
             ping_very_insecure: args.ping_very_insecure,
+            limits: GrpcLimits {
+                max_concurrent_streams: NonZeroU32::new(args.grpc_max_concurrent_streams),
+                max_concurrent_ranges: NonZeroUsize::new(args.max_concurrent_blockrange),
+            },
         };
         let mode = match (args.remote_rpc, args.replicate_from) {
             (Some(url), Some(source)) => {

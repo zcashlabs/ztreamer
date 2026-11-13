@@ -21,7 +21,7 @@ mod telemetry;
 #[cfg(test)]
 mod test_utils;
 
-pub use config::{DaemonConfig, IndexConfig, Mode, ServerConfig, SyncConfig, TlsFiles};
+pub use config::{DaemonConfig, GrpcLimits, IndexConfig, Mode, ServerConfig, SyncConfig, TlsFiles};
 pub use daemon::run_daemon;
 pub use remote::RemoteConfig;
 pub use replicate::ReplicaSource;

@@ -16,7 +16,7 @@ use ztreamer_protocol::proto::{
 use ztreamer_remote::test_utils::{MockChain, MockNode, Reply};
 use ztreamer_sync::pipeline::PipelineConfig;
 
-use crate::{DaemonConfig, IndexConfig, Mode, RemoteConfig, ServerConfig, SyncConfig};
+use crate::{DaemonConfig, GrpcLimits, IndexConfig, Mode, RemoteConfig, ServerConfig, SyncConfig};
 
 /// The configuration of a daemon in the remote mode on the node at `url`, with a 64 MiB index in
 /// `dir` and the import of `replicate_from`. The other values are the defaults of `ztreamerd`.
@@ -31,6 +31,7 @@ pub(crate) fn remote_config(dir: &Path, url: &str, replicate_from: &str) -> Daem
             tls: None,
             metrics_listen: "127.0.0.1:9999".parse().unwrap(),
             ping_very_insecure: false,
+            limits: GrpcLimits::default(),
         },
         mode: Mode::Remote(Box::new(remote)),
     }

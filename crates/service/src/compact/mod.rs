@@ -1,8 +1,8 @@
 //! Transport-independent requests over the serving snapshot of the head follower.
 
-use std::sync::Arc;
+use std::{num::NonZeroUsize, sync::Arc};
 
-use tokio::sync::{Semaphore, watch};
+use tokio::sync::watch;
 use tonic::Status;
 use tracing::Span;
 use zakura_chain::{
@@ -22,9 +22,12 @@ use ztreamer_sync::head::ServingSnapshot;
 mod address;
 mod blocks;
 mod mempool;
+mod range_limit;
 mod tree;
 
-const MAX_RANGE_STREAMS: usize = 16;
+pub use range_limit::{DEFAULT_MAX_CONCURRENT_RANGES, RANGE_ADMISSION_TIMEOUT};
+
+use self::range_limit::RangeLimit;
 
 /// The node version that `GetLightdInfo` reports.
 ///
@@ -45,7 +48,7 @@ pub struct CompactService {
     chain_name: Arc<str>,
     backend: Arc<dyn StateBackend>,
     node_version: Arc<NodeVersion>,
-    range_streams: Arc<Semaphore>,
+    range_streams: RangeLimit,
     ping_enabled: bool,
 }
 
@@ -74,13 +77,23 @@ impl CompactService {
             chain_name,
             backend: Arc::new(backend),
             node_version: Arc::default(),
-            range_streams: Arc::new(Semaphore::new(MAX_RANGE_STREAMS)),
+            range_streams: RangeLimit::default(),
             ping_enabled: false,
         }
     }
 
+    /// Answers `Ping` when `enabled` is set. Testing only.
     pub const fn with_ping_enabled(mut self, enabled: bool) -> Self {
         self.ping_enabled = enabled;
+        self
+    }
+
+    /// Limits the block-range streams (`GetBlockRange` and `GetBlockRangeNullifiers`) that run
+    /// at a time to `limit`, across all clones of the service made after this call. `None` sets
+    /// no limit. The default is [`DEFAULT_MAX_CONCURRENT_RANGES`]. A request waits up to
+    /// [`RANGE_ADMISSION_TIMEOUT`] for a slot, then fails with `UNAVAILABLE`.
+    pub fn with_max_concurrent_ranges(mut self, limit: Option<NonZeroUsize>) -> Self {
+        self.range_streams = RangeLimit::new(limit);
         self
     }
 
