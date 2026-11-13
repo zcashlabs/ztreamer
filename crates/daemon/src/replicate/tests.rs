@@ -10,6 +10,10 @@ use tonic::transport::{Endpoint, Server};
 use tonic_health::pb::{
     HealthCheckRequest, health_check_response::ServingStatus, health_client::HealthClient,
 };
+use tonic_reflection::pb::v1::{
+    ServerReflectionRequest, server_reflection_client::ServerReflectionClient,
+    server_reflection_request::MessageRequest, server_reflection_response::MessageResponse,
+};
 use zakura_chain::{block::Block, parameters::Network, serialization::ZcashSerialize as _};
 use ztreamer_chain::{
     codec::{CompactBlockRecord, RANGE_SIZE},
@@ -211,6 +215,23 @@ async fn serve_until<T>(
     (latest, result)
 }
 
+/// The services that the v1 reflection service of the gRPC server at `grpc` lists.
+async fn reflected_services(grpc: SocketAddr) -> Vec<String> {
+    let channel = Endpoint::from_shared(format!("http://{grpc}")).unwrap().connect().await.unwrap();
+    let mut client = ServerReflectionClient::new(channel);
+    let request = ServerReflectionRequest {
+        host: String::new(),
+        message_request: Some(MessageRequest::ListServices(String::new())),
+    };
+    let mut responses =
+        client.server_reflection_info(tokio_stream::once(request)).await.unwrap().into_inner();
+    let response = responses.message().await.unwrap().unwrap().message_response;
+    let Some(MessageResponse::ListServicesResponse(list)) = response else {
+        panic!("no list of services: {response:?}");
+    };
+    list.service.into_iter().map(|service| service.name).collect()
+}
+
 /// The start heights of the ranges that the Replicator at `grpc` lists, when it lists `count`
 /// ranges. Polls every 50 ms, and panics after 30 s.
 async fn listed_ranges(grpc: SocketAddr, count: usize) -> Vec<u32> {
@@ -233,7 +254,7 @@ async fn listed_ranges(grpc: SocketAddr, count: usize) -> Vec<u32> {
 }
 
 /// A fresh replica imports the snapshot and follows the chain. `GetLightdInfo` reports the
-/// version of the `getinfo` answer of the node.
+/// version of the `getinfo` answer of the node. Health and server reflection share the listener.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_fresh_replica_imports_three_epochs_then_follows_the_chain() {
     let snapshot = Snapshot::new().await;
@@ -247,6 +268,11 @@ async fn a_fresh_replica_imports_three_epochs_then_follows_the_chain() {
         let status = health.check(HealthCheckRequest { service: String::new() }).await.unwrap();
         assert_eq!(status.into_inner().status(), ServingStatus::Serving);
         let watch = health.watch(HealthCheckRequest { service: String::new() }).await.unwrap();
+        let services = reflected_services(grpc).await;
+        for service in ["cash.z.wallet.sdk.rpc.CompactTxStreamer", "ztreamer.replicate.Replicator"]
+        {
+            assert!(services.iter().any(|name| name == service), "{services:?}");
+        }
         let mut client = CompactTxStreamerClient::connect(format!("http://{grpc}")).await.unwrap();
         // Keep a health Watch open through shutdown: it must not hold the daemon open.
         (client.get_lightd_info(Empty {}).await.unwrap().into_inner(), watch.into_inner())

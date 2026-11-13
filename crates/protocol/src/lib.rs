@@ -5,10 +5,12 @@
 #![allow(missing_docs)]
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 
+mod descriptor;
 mod encoded;
 pub mod p2p;
 mod rpc_stream;
 
+pub use descriptor::{LIGHTWALLET_FILE_DESCRIPTOR_SET, REPLICATE_FILE_DESCRIPTOR_SET};
 pub use encoded::EncodedCompactBlock;
 pub use rpc_stream::RpcStream;
 
