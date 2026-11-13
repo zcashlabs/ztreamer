@@ -53,6 +53,7 @@
 //! [`VerifyState::Verified`]: ztreamer_index::index::range_meta::VerifyState::Verified
 
 mod epoch_import;
+mod progress;
 
 use std::{future, num::NonZeroUsize, pin, sync::Arc, thread};
 
@@ -65,7 +66,7 @@ use ztreamer_chain::codec::CompactBlockRecord;
 use ztreamer_index::index::{BlockId, Index, IndexError, IndexState, range_meta::NodeId};
 use ztreamer_snapshot::{epoch::Epoch, manifest::Manifest, manifest_entry::ManifestEntry};
 
-use self::epoch_import::EpochImport;
+use self::{epoch_import::EpochImport, progress::ImportProgress};
 use crate::{
     attest::{Attestor, EpochError, NodeError},
     fetch::{FetchError, Fetcher, RangeSource},
@@ -135,12 +136,11 @@ pub struct ImportReport {
 
 impl ImportReport {
     /// Adds the install of `epoch`.
-    fn add_installed_epoch(&mut self, epoch: &Epoch<'_>, state: &IndexState) {
+    const fn add_installed_epoch(&mut self, epoch: &Epoch<'_>, state: &IndexState) {
         self.epochs += 1;
         self.ranges += epoch.entries().len();
         self.sealed_through = state.sealed_through();
         self.verified_through = state.verified_through();
-        info!(end_height = epoch.end_height(), ranges = self.ranges, "imported epoch");
     }
 }
 
@@ -330,6 +330,9 @@ impl Importer {
         };
         let epoch_import = EpochImport::new(self, manifest, first_epoch, sealed);
         let epoch_import = Arc::new(epoch_import);
+        let epochs: Vec<_> =
+            epoch_import.epochs_to_import().map(|at| epoch_import.manifest_epoch(at)).collect();
+        let mut progress = ImportProgress::start(&epochs);
         let blob_byte_budget = Arc::new(Semaphore::new(MAX_BLOB_BYTES_BEFORE_INSTALL as usize));
         let stop_signal = async move {
             // A dropped sender never stops the import.
@@ -375,6 +378,7 @@ impl Importer {
                 .inspect_err(|error| record_error(&span, error))?;
             let epoch = epoch_import.manifest_epoch(at);
             report.add_installed_epoch(&epoch, &state);
+            progress.installed(&epoch, report.ranges);
             next_epoch = at + 1;
         }
         // Only the shutdown signal ends the epochs early: an error returns above.

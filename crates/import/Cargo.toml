@@ -31,6 +31,7 @@ ed25519-zebra.workspace = true
 futures-util = "0.3"
 http = "1"
 http-body-util = "0.1"
+metrics = "0.24"
 hyper = { version = "1", features = ["client", "http1"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "http1", "tokio"] }
 pasta_curves.workspace = true
