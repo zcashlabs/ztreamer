@@ -24,7 +24,8 @@ use zakura_rpc::{
 };
 use zakura_state::HashOrHeight;
 use ztreamer_backend::{
-    AddressUtxo, BackendError, BlockHandle, MinedTransaction, StateBackend, Subtrees, TreeState,
+    AddressUtxo, BackendError, BlockHandle, MinedTransaction, StandardFee, StateBackend, Subtrees,
+    TreeState,
 };
 
 use super::{
@@ -258,5 +259,17 @@ impl StateBackend for RemoteBackend {
             ))),
             Err(error) => Err(NodeCallError(error).into()),
         }
+    }
+
+    async fn standard_fee(&self) -> Result<StandardFee, BackendError> {
+        // A node with no fee estimate does not serve the method. lightwalletd then answers
+        // `UNIMPLEMENTED` too.
+        self.node.get_standard_fee().await.map_err(|error| {
+            if error.is_method_not_found() {
+                BackendError::Unimplemented(format!("remote zakura: {error}"))
+            } else {
+                NodeCallError(error).into()
+            }
+        })
     }
 }

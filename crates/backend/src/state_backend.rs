@@ -96,6 +96,11 @@ pub trait StateBackend: Send + Sync + 'static {
         &self,
         transaction: Transaction,
     ) -> Result<transaction::Hash, BackendError>;
+
+    /// The fee per logical action that the node recommends for a transaction to be mined in the
+    /// next block. Fails with [`BackendError::Unimplemented`] on a node that has no fee
+    /// estimate.
+    async fn standard_fee(&self) -> Result<StandardFee, BackendError>;
 }
 
 /// Completed note commitment subtrees of one pool, by subtree index.
@@ -142,6 +147,16 @@ impl From<&TreeState> for PoolRoots {
             ironwood: trees.ironwood.as_ref().map(|tree| tree.root()),
         }
     }
+}
+
+/// The fee that a node recommends, as its `getstandardfee` RPC gives it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StandardFee {
+    /// The ZIP 317 marginal fee in zatoshis per logical action.
+    pub zatoshis_per_action: u64,
+    /// The version of the fee estimator of the node. Version 0 is the static ZIP 317 marginal
+    /// fee.
+    pub estimator_version: u32,
 }
 
 /// One unspent transparent output.

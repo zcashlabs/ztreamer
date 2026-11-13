@@ -49,6 +49,7 @@
 //! | `address_balance`, `address_utxos` | `getaddressbalance`, `getaddressutxos` |
 //! | `mempool_transactions` | `getrawmempool`, then `getrawtransaction <txid> 1` |
 //! | `submit_transaction` | `sendrawtransaction` |
+//! | `standard_fee` | `getstandardfee` |
 //!
 //! The `range_meta` filler of `ztreamer_replicator` also uses the `RemoteBackend`. For each range
 //! that the tail or the head follower seals, it calls `tree_state` and the subtree methods, and
