@@ -24,7 +24,8 @@ use zakura_chain::{
     transparent,
 };
 use ztreamer_backend::{
-    AddressUtxo, BackendError, BlockHandle, MinedTransaction, StateBackend, Subtrees, TreeState,
+    AddressUtxo, BackendError, BlockHandle, MinedTransaction, StandardFee, StateBackend, Subtrees,
+    TreeState,
 };
 use ztreamer_chain::codec::CompactBlockRecord;
 use ztreamer_index::index::{Index, IndexState};
@@ -136,6 +137,10 @@ impl StateBackend for EmptyChain {
         _transaction: Transaction,
     ) -> Result<transaction::Hash, BackendError> {
         Self::no_mempool()
+    }
+
+    async fn standard_fee(&self) -> Result<StandardFee, BackendError> {
+        Ok(StandardFee { zatoshis_per_action: 1_000, estimator_version: 0 })
     }
 }
 

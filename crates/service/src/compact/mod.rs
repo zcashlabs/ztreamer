@@ -174,7 +174,7 @@ impl CompactService {
             zcashd_subversion: self.node_version.subversion.clone(),
             upgrade_name: next_upgrade.map_or_else(String::new, |(_, upgrade)| upgrade.to_string()),
             upgrade_height: next_upgrade.map_or(0, |(height, _)| u64::from(height.0)),
-            lightwallet_protocol_version: "v0.5.0".to_owned(),
+            lightwallet_protocol_version: "v0.6.0".to_owned(),
             ..Default::default()
         }
     }
@@ -187,6 +187,16 @@ impl CompactService {
             ));
         }
         Ok(proto::PingResponse { entry: 1, exit: 0 })
+    }
+
+    /// Answers `GetStandardFee` from the backend. Fails with `UNIMPLEMENTED` when the node has
+    /// no fee estimate.
+    pub async fn standard_fee(&self) -> Result<proto::StandardFee, Status> {
+        let fee = self.backend.standard_fee().await?;
+        Ok(proto::StandardFee {
+            fee_zat: fee.zatoshis_per_action,
+            estimator_version: fee.estimator_version,
+        })
     }
 
     /// Answers `GetTransaction`.

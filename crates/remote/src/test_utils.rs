@@ -275,7 +275,7 @@ impl MockChain {
 
 impl Method {
     /// All the methods.
-    pub(crate) const ALL: [Self; 13] = [
+    pub(crate) const ALL: [Self; 14] = [
         Self::GetInfo,
         Self::GetBlockchainInfo,
         Self::GetBlockCount,
@@ -289,6 +289,7 @@ impl Method {
         Self::GetAddressTxIds,
         Self::GetAddressBalance,
         Self::GetAddressUtxos,
+        Self::GetStandardFee,
     ];
 
     /// The method with the wire name `name`, or `None` for a name that is not in [`Self::ALL`].

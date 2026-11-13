@@ -422,3 +422,11 @@ async fn submit_maps_a_node_error_to_rejected() {
     let error = backend(&mock).await.submit_transaction((*coinbase).clone()).await.unwrap_err();
     assert!(matches!(error, BackendError::Unavailable(_)), "{error}");
 }
+
+#[tokio::test]
+async fn standard_fee_without_the_method_is_unimplemented() {
+    let mock =
+        mainnet(1, |_, _| Reply::Error { code: RpcCode::METHOD_NOT_FOUND, message: "nope" }).await;
+    let error = backend(&mock).await.standard_fee().await.unwrap_err();
+    assert!(matches!(error, BackendError::Unimplemented(_)), "{error}");
+}

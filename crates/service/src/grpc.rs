@@ -96,6 +96,13 @@ impl CompactTxStreamer for CompactService {
         Ok(Response::new(self.lightd_info()))
     }
 
+    async fn get_standard_fee(
+        &self,
+        _request: Request<proto::Empty>,
+    ) -> Result<Response<proto::StandardFee>, Status> {
+        Ok(Response::new(self.standard_fee().await?))
+    }
+
     async fn ping(
         &self,
         _request: Request<proto::Duration>,

@@ -1,12 +1,13 @@
 //! Typed calls for the zakura methods that `ztreamerd` uses with a remote node.
 //!
 //! The request and response types come from `zakura_rpc::client`. Thus this client and the node
-//! use the same code to encode and decode each value.
+//! use the same code to encode and decode each value. `zakura_rpc` does not export the answer of
+//! `getstandardfee`, so this module decodes it with a copy of its fields.
 
 use std::{fmt, time::Duration};
 
 use http::Uri;
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use zakura_rpc::{
     client::{
         GetAddressBalanceRequest, GetAddressBalanceResponse, GetAddressTxIdsRequest,
@@ -19,6 +20,7 @@ use zakura_rpc::{
 };
 use zakura_state::HashOrHeight;
 
+use ztreamer_backend::StandardFee;
 use ztreamer_blocking::BlockingTask;
 use ztreamer_chain::types::RawIndexBlock;
 use ztreamer_jsonrpc::{Retries, RpcClient, RpcConfig, RpcError};
@@ -57,6 +59,8 @@ pub enum Method {
     GetAddressBalance,
     /// `getaddressutxos`.
     GetAddressUtxos,
+    /// `getstandardfee`.
+    GetStandardFee,
 }
 
 impl Method {
@@ -76,6 +80,7 @@ impl Method {
             Self::GetAddressTxIds => "getaddresstxids",
             Self::GetAddressBalance => "getaddressbalance",
             Self::GetAddressUtxos => "getaddressutxos",
+            Self::GetStandardFee => "getstandardfee",
         }
     }
 }
@@ -259,6 +264,26 @@ impl ZakuraClient {
     ) -> Result<GetAddressUtxosResponse, RpcError> {
         self.call(Method::GetAddressUtxos, (request,)).await
     }
+
+    /// `getstandardfee`: the fee per logical action that the node recommends.
+    pub async fn get_standard_fee(&self) -> Result<StandardFee, RpcError> {
+        self.call(Method::GetStandardFee, ()).await.map(|answer: GetStandardFeeResponse| {
+            StandardFee {
+                zatoshis_per_action: answer.standard_fee,
+                estimator_version: answer.version,
+            }
+        })
+    }
+}
+
+/// The answer of `getstandardfee`, with the fields of the `GetStandardFeeResponse` of
+/// `zakura_rpc`, which that crate does not export.
+#[derive(Debug, Deserialize)]
+struct GetStandardFeeResponse {
+    /// The fee per logical action, in zatoshis.
+    standard_fee: u64,
+    /// The version of the fee estimator.
+    version: u32,
 }
 
 #[cfg(test)]

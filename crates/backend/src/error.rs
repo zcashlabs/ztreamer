@@ -17,6 +17,10 @@ pub enum BackendError {
     /// The backend answered with something it should not have. Maps to `INTERNAL`.
     #[error("{0}")]
     Unexpected(String),
+    /// The backend does not serve this request, for example a remote node without the method.
+    /// Maps to `UNIMPLEMENTED`.
+    #[error("{0}")]
+    Unimplemented(String),
 }
 
 /// A backend answer with an amount out of range is an answer that it should not have sent.
@@ -32,6 +36,7 @@ impl From<BackendError> for Status {
             BackendError::Unavailable(message) => Self::unavailable(message),
             BackendError::Rejected(message) => Self::invalid_argument(message),
             BackendError::Unexpected(message) => Self::internal(message),
+            BackendError::Unimplemented(message) => Self::unimplemented(message),
         }
     }
 }
@@ -53,6 +58,10 @@ mod tests {
         assert_eq!(
             Status::from(BackendError::Unexpected("c".into())).code(),
             tonic::Code::Internal
+        );
+        assert_eq!(
+            Status::from(BackendError::Unimplemented("d".into())).code(),
+            tonic::Code::Unimplemented
         );
         assert_eq!(Status::from(BackendError::Rejected("b".into())).message(), "b");
     }
