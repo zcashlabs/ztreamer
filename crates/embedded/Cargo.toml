@@ -20,6 +20,7 @@ tower = { version = "0.5.3", features = ["buffer", "util"] }
 tracing = "0.1"
 zakura-chain.workspace = true
 zakura-node-services.workspace = true
+zakura-rpc.workspace = true
 zakura-state = { workspace = true, features = ["indexer"] }
 zakurad = { workspace = true, features = ["indexer"] }
 ztreamer-backend = { path = "../backend", version = "0.1.0" }

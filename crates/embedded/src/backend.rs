@@ -14,11 +14,11 @@ use zakura_chain::{
 };
 use zakura_state::{ReadRequest, ReadResponse, ReadStateService};
 use ztreamer_backend::{
-    AddressUtxo, BackendError, BlockHandle, MinedTransaction, StandardFee, StateBackend, Subtrees,
-    TreeState,
+    AddressUtxo, BackendError, BlockHandle, MinedTransaction, StandardFee, StateBackend,
+    Submission, Subtrees, TreeState,
 };
 
-use crate::NodeClient;
+use crate::{NodeClient, submission::submission};
 
 /// The lowest standard fee that Zakura's `getstandardfee` gives, in zatoshis per logical action.
 const MIN_STANDARD_FEE: u64 = 1_000;
@@ -225,15 +225,12 @@ impl StateBackend for InProcessBackend {
     async fn submit_transaction(
         &self,
         transaction: Transaction,
-    ) -> Result<transaction::Hash, BackendError> {
+    ) -> Result<Submission, BackendError> {
         let node = self.node()?.clone();
         let runtime = tokio::runtime::Handle::current();
-        block_on_node(move || runtime.block_on(node.submit_transaction(transaction)))
-            .await?
-            .map(|id| id.mined_id())
-            .map_err(|error| {
-                BackendError::Rejected(format!("Zakura rejected transaction: {error}"))
-            })
+        submission(
+            block_on_node(move || runtime.block_on(node.submit_transaction(transaction))).await?,
+        )
     }
 
     /// The answer of Zakura's `getstandardfee`: the static ZIP 317 marginal fee, at least

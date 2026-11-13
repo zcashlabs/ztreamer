@@ -11,20 +11,49 @@ use zakura_chain::{
     serialization::{ZcashDeserialize, ZcashSerialize},
     transaction::{self, Transaction},
 };
+use zakura_rpc::server::error::LegacyCode;
+use ztreamer_backend::{Rejection, Submission};
 use ztreamer_protocol::proto;
 
 use super::{CompactService, RpcStream, ensure_tip_ready};
 use crate::project::{PoolSelection, compact_mempool_txs, excluded_txids};
 
+/// The largest raw transaction that `SendTransaction` takes, in bytes.
+///
+/// A transaction cannot be larger than a block, so a larger one can never be mined. Thus the
+/// service refuses it before it parses it, as `lightwalletd` does since GHSA-6ppp-r2gc-9q6v.
+pub(crate) const MAX_RAW_TRANSACTION_BYTES: usize = 2_000_000;
+
 impl CompactService {
+    /// Submits a raw transaction to the node, as `lightwalletd` does.
+    ///
+    /// Empty data and data over [`MAX_RAW_TRANSACTION_BYTES`] fail with `INVALID_ARGUMENT`. A
+    /// node that refuses the transaction gives a `SendResponse` with its code and message. Bytes
+    /// that are not a transaction give the answer of Zakura's `sendrawtransaction` for them:
+    /// code -22 and the parse error. An accepted transaction gives code 0 and its txid.
     pub(crate) async fn send_transaction(
         &self,
         request: proto::RawTransaction,
     ) -> Result<proto::SendResponse, Status> {
-        let transaction = Transaction::zcash_deserialize(request.data.as_slice())
-            .map_err(|error| Status::invalid_argument(format!("invalid transaction: {error}")))?;
-        let txid = self.backend.submit_transaction(transaction).await?;
-        Ok(proto::SendResponse { error_code: 0, error_message: txid.to_string() })
+        if request.data.is_empty() {
+            return Err(Status::invalid_argument("bad transaction data"));
+        }
+        if request.data.len() > MAX_RAW_TRANSACTION_BYTES {
+            return Err(Status::invalid_argument(format!(
+                "transaction is too large: {} bytes (limit {MAX_RAW_TRANSACTION_BYTES})",
+                request.data.len()
+            )));
+        }
+        // Zakura answers `sendrawtransaction` for bytes that do not parse with this code and
+        // the parse error, and `lightwalletd` passes that on.
+        let submission = match Transaction::zcash_deserialize(request.data.as_slice()) {
+            Ok(transaction) => self.backend.submit_transaction(transaction).await?,
+            Err(error) => Submission::Rejected(Rejection::new(
+                LegacyCode::Deserialization.into(),
+                error.to_string(),
+            )),
+        };
+        Ok(send_response(submission))
     }
 
     pub(crate) async fn mempool_stream(&self) -> Result<RpcStream<proto::RawTransaction>, Status> {
@@ -122,6 +151,20 @@ impl CompactService {
     }
 }
 
+/// The `SendResponse` for the answer of the node: code 0 and the txid, or the code and the
+/// message of a rejection.
+fn send_response(submission: Submission) -> proto::SendResponse {
+    match submission {
+        Submission::Accepted(txid) => {
+            proto::SendResponse { error_code: 0, error_message: txid.to_string() }
+        }
+        Submission::Rejected(Rejection { code, message }) => {
+            tracing::debug!(code, %message, "the node rejected a transaction");
+            proto::SendResponse { error_code: code, error_message: message }
+        }
+    }
+}
+
 fn mempool_compact(
     transactions: Vec<transaction::UnminedTx>,
     request: &proto::GetMempoolTxRequest,
@@ -186,6 +229,35 @@ mod tests {
     }
 
     const WAIT: Duration = Duration::from_millis(300);
+
+    fn raw(data: Vec<u8>) -> proto::RawTransaction {
+        proto::RawTransaction { data, height: 0 }
+    }
+
+    #[tokio::test]
+    async fn send_refuses_empty_and_oversized_data() {
+        let (service, _snapshots, mock, _dir) = remote_service().await;
+        let error = service.send_transaction(raw(Vec::new())).await.unwrap_err();
+        assert_eq!(error.code(), tonic::Code::InvalidArgument);
+        assert_eq!(error.message(), "bad transaction data");
+
+        let error = service
+            .send_transaction(raw(vec![0; MAX_RAW_TRANSACTION_BYTES + 1]))
+            .await
+            .unwrap_err();
+        assert_eq!(error.code(), tonic::Code::InvalidArgument);
+        assert!(error.message().contains("too large"), "{}", error.message());
+        assert!(mock.seen().iter().all(|seen| seen.body["method"] != "sendrawtransaction"));
+    }
+
+    #[tokio::test]
+    async fn send_answers_undecodable_bytes_like_zakura() {
+        let (service, _snapshots, _mock, _dir) = remote_service().await;
+        let response = service.send_transaction(raw(vec![0xde, 0xad, 0xbe, 0xef])).await.unwrap();
+        assert_eq!(response.error_code, -22);
+        let expected = Transaction::zcash_deserialize(&[0xde, 0xad, 0xbe, 0xef][..]).unwrap_err();
+        assert_eq!(response.error_message, expected.to_string());
+    }
 
     #[tokio::test]
     async fn mempool_stream_ends_when_the_visible_tip_changes() {
