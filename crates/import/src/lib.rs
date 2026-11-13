@@ -15,6 +15,7 @@
 pub mod attest;
 pub mod fetch;
 pub mod importer;
+mod metrics;
 pub mod proof;
 pub mod range;
 pub mod sample;

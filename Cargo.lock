@@ -4733,6 +4733,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "incrementalmerkletree",
+ "metrics",
  "rand 0.10.2",
  "rustls",
  "serde_json",
