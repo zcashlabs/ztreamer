@@ -4965,6 +4965,7 @@ dependencies = [
  "clap",
  "ed25519-zebra",
  "eyre",
+ "hex",
  "serde_json",
  "tempfile",
  "tracing",

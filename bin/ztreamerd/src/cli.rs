@@ -8,7 +8,9 @@ use std::{
 };
 
 use clap::{Args, Parser, Subcommand};
+use ed25519_zebra::VerificationKey;
 use eyre::{Result, eyre};
+use hex::FromHex as _;
 use ztreamer_daemon::{
     DaemonConfig, GrpcLimits, IndexConfig, Mode, RemoteConfig, ReplicaSource, ServerConfig,
     SyncConfig, TelemetryConfig, TlsFiles, run_daemon,
@@ -133,14 +135,13 @@ struct DaemonArgs {
     #[arg(long)]
     index_only: bool,
 
-    /// JSON-RPC URL of a remote zakura node. Needs --replicate-from. ztreamerd starts no
-    /// embedded node. It imports the sealed ranges of --replicate-from, and this node attests
-    /// them. Then ztreamerd reads the tail and the head from this node. The node gives the
-    /// network (mainnet or testnet), and the index must be of that network. For HTTP basic auth,
-    /// put the credentials in the URL: https://user:password@host:8232. Without credentials and
-    /// without --remote-rpc-cookie, a loopback URL uses the default cookie file of zakura if it
-    /// exists.
-    #[arg(long, value_name = "URL", conflicts_with = "zakura_config", requires = "replicate_from")]
+    /// JSON-RPC URL of a remote zakura node. ztreamerd starts no embedded node. It imports the
+    /// sealed ranges of --replicate-from, and this node attests them. Then ztreamerd reads the
+    /// tail and the head from this node. The node gives the network (mainnet or testnet), and
+    /// the index must be of that network. For HTTP basic auth, put the credentials in the URL:
+    /// https://user:password@host:8232. Without credentials and without --remote-rpc-cookie, a
+    /// loopback URL uses the default cookie file of zakura if it exists.
+    #[arg(long, value_name = "URL", conflicts_with = "zakura_config")]
     remote_rpc: Option<NodeUrl>,
 
     /// Cookie file of the --remote-rpc node.
@@ -149,10 +150,16 @@ struct DaemonArgs {
 
     /// Import the sealed ranges from this source before the tail: an http:// or https:// base
     /// URL of a snapshot, or the host:port of a peer that serves the Replicator gRPC service
-    /// without TLS. Needs --remote-rpc: the node that attests the import, and that ztreamerd
-    /// follows after it.
+    /// without TLS. Defaults to `https://snapshot.ztreamer.sh/mainnet` on mainnet. With a sealed
+    /// index, ztreamerd continues without the import when the source is out of reach. Needs
+    /// --remote-rpc: the node that attests the import, and that ztreamerd follows after it.
     #[arg(long, value_name = "URL|HOST:PORT", requires = "remote_rpc")]
     replicate_from: Option<ReplicaSource>,
+
+    /// Hex of the 32-byte Ed25519 key that verifies the snapshots, in place of the built-in key.
+    /// Needs --remote-rpc.
+    #[arg(long, value_name = "HEX", requires = "remote_rpc", value_parser = snapshot_key)]
+    snapshot_key: Option<VerificationKey>,
 }
 
 impl DaemonArgs {
@@ -165,9 +172,8 @@ impl DaemonArgs {
 impl TryFrom<DaemonArgs> for DaemonConfig {
     type Error = eyre::Report;
 
-    /// The configuration of the flags. Clap makes `--tls-cert` and `--tls-key` need each other,
-    /// and `--remote-rpc` and `--replicate-from` need each other. Refuses a `--remote-rpc-cookie`
-    /// together with credentials in the `--remote-rpc` URL.
+    /// The configuration of the flags. Clap makes `--tls-cert` and `--tls-key` need each other.
+    /// Refuses a `--remote-rpc-cookie` together with credentials in the `--remote-rpc` URL.
     fn try_from(args: DaemonArgs) -> Result<Self> {
         let index = args.index();
         let sync =
@@ -187,12 +193,16 @@ impl TryFrom<DaemonArgs> for DaemonConfig {
                 max_concurrent_ranges: NonZeroUsize::new(args.max_concurrent_blockrange),
             },
         };
-        let mode = match (args.remote_rpc, args.replicate_from) {
-            (Some(url), Some(source)) => {
-                Mode::Remote(Box::new(RemoteConfig::new(url, args.remote_rpc_cookie, source)?))
+        let mode = match args.remote_rpc {
+            Some(url) => {
+                let remote = RemoteConfig::new(url, args.remote_rpc_cookie, args.replicate_from)?;
+                let remote = match args.snapshot_key {
+                    Some(key) => remote.with_snapshot_key(key),
+                    None => remote,
+                };
+                Mode::Remote(Box::new(remote))
             }
-            (None, None) => Mode::Embedded { zakura_config: args.zakura_config },
-            _ => return Err(eyre!("--remote-rpc and --replicate-from must be provided together")),
+            None => Mode::Embedded { zakura_config: args.zakura_config },
         };
         Ok(Self { index, sync, servers, mode })
     }
@@ -218,11 +228,16 @@ impl From<&DaemonArgs> for PipelineConfig {
     }
 }
 
+/// The key of `--snapshot-key`.
+fn snapshot_key(hex: &str) -> Result<VerificationKey, String> {
+    let bytes = <[u8; 32]>::from_hex(hex).map_err(|error| error.to_string())?;
+    VerificationKey::try_from(bytes).map_err(|error| error.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
 
-    use clap::error::ErrorKind;
     use ztreamer_daemon::LogFormat;
 
     use super::*;
@@ -321,16 +336,11 @@ mod tests {
     }
 
     #[test]
-    fn the_remote_mode_needs_both_remote_rpc_and_replicate_from() {
-        let missing = |flags: &[&str]| {
-            let error = Cli::try_parse_from(["ztreamerd"].iter().chain(flags)).unwrap_err();
-            assert_eq!(error.kind(), ErrorKind::MissingRequiredArgument, "{error}");
-            error.to_string()
-        };
-        let error = missing(&["--remote-rpc", "http://127.0.0.1:8232"]);
-        assert!(error.contains("--replicate-from <URL|HOST:PORT>"), "{error}");
-        let error = missing(&["--replicate-from", "https://snapshots.example/mainnet"]);
-        assert!(error.contains("--remote-rpc <URL>"), "{error}");
+    fn remote_rpc_alone_selects_the_remote_mode() {
+        let args = Cli::parse_from(["ztreamerd", "--remote-rpc", "http://127.0.0.1:8232"]).daemon;
+        assert!(args.replicate_from.is_none());
+        let config = DaemonConfig::try_from(args).unwrap();
+        assert!(matches!(config.mode, Mode::Remote(_)));
     }
 
     #[test]

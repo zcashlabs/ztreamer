@@ -231,7 +231,7 @@ fn the_credentials_come_from_the_cookie_the_url_or_the_default_cookie() {
         RemoteConfig::new(
             url.parse().unwrap(),
             cookie.map(PathBuf::from),
-            "peer:9068".parse().unwrap(),
+            Some("peer:9068".parse().unwrap()),
         )
     };
     let auth = |url, default_cookie: &Path| remote(url, None).unwrap().auth(default_cookie);
@@ -261,7 +261,8 @@ async fn the_node_gets_the_credentials_of_the_url_and_of_the_default_cookie() {
     let mock = MockNode::start(|_, _| Reply::Result(json!("00"))).await;
     let port = mock.addr().port();
     let headers = async |url: String| {
-        let remote = RemoteConfig::new(url.parse().unwrap(), None, "peer:9068".parse().unwrap());
+        let remote =
+            RemoteConfig::new(url.parse().unwrap(), None, Some("peer:9068".parse().unwrap()));
         let client = remote.unwrap().client(&cookie).unwrap();
         assert!(!format!("{client:?}").contains("hunter2"));
         client.rpc().call::<_, String>("getbestblockhash", ()).await.unwrap();

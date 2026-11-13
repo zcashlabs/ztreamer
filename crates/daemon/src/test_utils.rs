@@ -22,7 +22,8 @@ use crate::{DaemonConfig, GrpcLimits, IndexConfig, Mode, RemoteConfig, ServerCon
 /// `dir` and the import of `replicate_from`. The other values are the defaults of `ztreamerd`.
 pub(crate) fn remote_config(dir: &Path, url: &str, replicate_from: &str) -> DaemonConfig {
     let remote =
-        RemoteConfig::new(url.parse().unwrap(), None, replicate_from.parse().unwrap()).unwrap();
+        RemoteConfig::new(url.parse().unwrap(), None, Some(replicate_from.parse().unwrap()))
+            .unwrap();
     DaemonConfig {
         index: IndexConfig { dir: dir.to_owned(), map_size: NonZeroUsize::new(64 << 20).unwrap() },
         sync: SyncConfig { pipeline: PipelineConfig::default(), index_only: false },

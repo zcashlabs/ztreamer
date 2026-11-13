@@ -8,6 +8,7 @@ use std::{
     time::Duration,
 };
 
+use ed25519_zebra::VerificationKey;
 use eyre::{Result, WrapErr, eyre};
 use tokio::runtime::Handle;
 use tokio_util::sync::CancellationToken;
@@ -39,17 +40,20 @@ pub struct RemoteConfig {
     /// The credentials of `--remote-rpc-cookie` or of the URL. With `None`, a loopback URL uses
     /// the default cookie file of zakura if it exists.
     auth: Option<Auth>,
-    /// The source of the import.
-    replicate_from: ReplicaSource,
+    /// The source of the import. `None` for the published snapshot of the network.
+    replicate_from: Option<ReplicaSource>,
+    /// The key of `--snapshot-key`. `None` for the built-in key.
+    snapshot_key: Option<VerificationKey>,
 }
 
 impl RemoteConfig {
     /// The node at `url`, with the cookie file `cookie` or the credentials of the URL, and the
-    /// import of `replicate_from`. Refuses a cookie file and credentials in the URL together.
+    /// import of `replicate_from`, or of the published snapshot of the network. Refuses a cookie
+    /// file and credentials in the URL together.
     pub fn new(
         url: NodeUrl,
         cookie: Option<PathBuf>,
-        replicate_from: ReplicaSource,
+        replicate_from: Option<ReplicaSource>,
     ) -> Result<Self> {
         let auth = match (cookie, url.credentials()) {
             (Some(_), Some(_)) => {
@@ -60,7 +64,14 @@ impl RemoteConfig {
             (Some(cookie), None) => Some(Auth::Cookie(cookie)),
             (None, credentials) => credentials.cloned(),
         };
-        Ok(Self { url, auth, replicate_from })
+        Ok(Self { url, auth, replicate_from, snapshot_key: None })
+    }
+
+    /// Checks the snapshots with `key` in place of the built-in key.
+    #[must_use]
+    pub const fn with_snapshot_key(mut self, key: VerificationKey) -> Self {
+        self.snapshot_key = Some(key);
+        self
     }
 
     /// The node of this configuration with its import. The default cookie file is the one of a
@@ -74,7 +85,7 @@ impl RemoteConfig {
 
     /// The import of `--replicate-from`.
     pub(crate) fn replica(&self) -> Replica {
-        Replica::new(self.replicate_from.clone())
+        Replica::new(self.replicate_from.clone(), self.snapshot_key)
     }
 
     /// The client of the node, with `default_cookie` as the default cookie file.
