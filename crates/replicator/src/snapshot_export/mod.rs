@@ -67,7 +67,7 @@ impl SnapshotExport {
             warn!(
                 missing_rows,
                 "export stopped at the first sealed range without a range_meta row; \
-                 run the daemon in embedded mode to fill the rows"
+                 run the daemon until it serves to fill the rows"
             );
         }
     }

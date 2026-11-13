@@ -14,8 +14,9 @@ use std::{
 };
 
 use chrono::Utc;
-use ed25519_zebra::SigningKey;
+use ed25519_zebra::{SigningKey, VerificationKey};
 use eyre::{Result, WrapErr, ensure};
+use tracing::info;
 use zakura_chain::parameters::Network;
 use zeroize::Zeroizing;
 use ztreamer_index::index::Index;
@@ -39,6 +40,8 @@ impl ExportArgs {
     pub(crate) fn run(self, index: &Index) -> Result<()> {
         // Read the key before the potentially lengthy export.
         let signer = Signer::from_file(&self.signing_key)?;
+        let snapshot_key = hex::encode(VerificationKey::from(&*signer.0));
+        info!(%snapshot_key, "signing the snapshot");
         let identity = index.identity()?;
         let network: Network = identity
             .network
