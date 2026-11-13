@@ -7,6 +7,8 @@
 //! 3. Catch up: the block pipeline indexes the finalized blocks of the tail until it is stable.
 //!    Then the head reconcile brings the index onto the canonical head of the node.
 //! 4. Serve: the head follower, the gRPC server and the `range_meta` filler run until shutdown.
+//!    The gRPC server serves the wallet service, the Replicator, standard health and server
+//!    reflection on one listener.
 
 use std::{ops::ControlFlow, sync::Arc};
 
@@ -27,6 +29,7 @@ use crate::{
     index_pass::{IndexPass, PassKind},
     lifecycle::{Supervisor, TaskSet},
     node::{HistoricalSource, IndexTip, Node, NodeComponents, StageContext, Tail},
+    reflection::add_reflection,
     tasks::{FillerTask, GrpcTask, HeadFollowerTask, TASK_STOPPED},
     telemetry::GrpcServer,
 };
@@ -170,10 +173,12 @@ impl Launcher {
             ReplicatorService::new(Arc::clone(stage.index), follower.subscribe(), stage.network);
         let (reporter, health_service) = tonic_health::server::health_reporter();
         let health = HealthTask::new(reporter, follower.subscribe()).await;
-        let router = grpc_server
-            .add_service(health_service)
-            .add_service(CompactTxStreamerServer::new(compact))
-            .add_service(ReplicatorServer::new(replicator));
+        let router = add_reflection(
+            grpc_server
+                .add_service(health_service)
+                .add_service(CompactTxStreamerServer::new(compact))
+                .add_service(ReplicatorServer::new(replicator)),
+        )?;
 
         // The supervisor drains the tasks before it gives a result, also on failure. Thus
         // the caller can close the index: the filler holds it no more.

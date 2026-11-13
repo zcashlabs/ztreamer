@@ -14,6 +14,7 @@ mod launcher;
 mod lifecycle;
 mod metrics_endpoint;
 mod node;
+mod reflection;
 mod remote;
 mod replicate;
 mod tasks;
