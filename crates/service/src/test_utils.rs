@@ -24,8 +24,8 @@ use zakura_chain::{
     transparent,
 };
 use ztreamer_backend::{
-    AddressUtxo, BackendError, BlockHandle, MinedTransaction, StandardFee, StateBackend, Subtrees,
-    TreeState,
+    AddressUtxo, BackendError, BlockHandle, MinedTransaction, StandardFee, StateBackend,
+    Submission, Subtrees, TreeState,
 };
 use ztreamer_chain::codec::CompactBlockRecord;
 use ztreamer_index::index::{Index, IndexState};
@@ -135,7 +135,7 @@ impl StateBackend for EmptyChain {
     async fn submit_transaction(
         &self,
         _transaction: Transaction,
-    ) -> Result<transaction::Hash, BackendError> {
+    ) -> Result<Submission, BackendError> {
         Self::no_mempool()
     }
 

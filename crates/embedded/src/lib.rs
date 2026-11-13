@@ -9,6 +9,7 @@ mod client;
 mod error;
 mod finalized;
 mod head;
+mod submission;
 
 pub use backend::InProcessBackend;
 pub use client::NodeClient;

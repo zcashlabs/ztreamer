@@ -27,7 +27,7 @@ use zakura_rpc::client::{
     Treestate, Utxo,
 };
 use zakura_test::vectors::{BLOCK_MAINNET_1_BYTES, BLOCK_MAINNET_2_BYTES};
-use ztreamer_backend::{AddressUtxo, StateBackend};
+use ztreamer_backend::{AddressUtxo, Rejection, StateBackend, Submission};
 
 /// The mainnet answers that `connect` and the tip reads need, for a node with tip `tip`.
 fn chain_reply(method: &str, tip: u32) -> Option<Reply> {
@@ -402,20 +402,23 @@ async fn mempool_cache_keeps_only_the_listed_ids() {
 }
 
 #[tokio::test]
-async fn submit_maps_a_node_error_to_rejected() {
+async fn submit_passes_on_the_answer_of_the_node() {
     let coinbase = block_1().transactions[0].clone();
     let id = coinbase.hash();
     let mock = mainnet(1, move |_, _| Reply::Result(json!(id.to_string()))).await;
     let accepting = backend(&mock).await;
-    assert_eq!(accepting.submit_transaction((*coinbase).clone()).await.unwrap(), id);
+    assert_eq!(
+        accepting.submit_transaction((*coinbase).clone()).await.unwrap(),
+        Submission::Accepted(id)
+    );
     assert_eq!(
         last_params(&mock),
         json!([hex::encode(coinbase.zcash_serialize_to_vec().unwrap())])
     );
 
-    let mock = mainnet(1, |_, _| Reply::Error { code: RpcCode(-26), message: "bad-txns" }).await;
-    let error = backend(&mock).await.submit_transaction((*coinbase).clone()).await.unwrap_err();
-    assert!(matches!(&error, BackendError::Rejected(message) if message.contains("bad-txns")));
+    let mock = mainnet(1, |_, _| Reply::Error { code: RpcCode(-25), message: "bad-txns" }).await;
+    let submission = backend(&mock).await.submit_transaction((*coinbase).clone()).await.unwrap();
+    assert_eq!(submission, Submission::Rejected(Rejection::new(-25, "bad-txns")));
     // A node in warm-up says nothing about the transaction.
     let mock =
         mainnet(1, |_, _| Reply::Error { code: RpcCode::IN_WARMUP, message: "warm-up" }).await;

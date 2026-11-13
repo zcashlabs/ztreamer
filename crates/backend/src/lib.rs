@@ -16,9 +16,11 @@
 
 mod error;
 mod state_backend;
+mod submission;
 
 pub use error::BackendError;
 pub use state_backend::{
     AddressUtxo, BlockHandle, MinedTransaction, StandardFee, StateBackend, Subtrees,
     TransactionHandle, TreeState,
 };
+pub use submission::{Rejection, Submission};

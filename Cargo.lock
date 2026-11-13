@@ -4690,6 +4690,7 @@ dependencies = [
  "zakura",
  "zakura-chain",
  "zakura-node-services",
+ "zakura-rpc",
  "zakura-sapling-crypto",
  "zakura-state",
  "zakura-test",

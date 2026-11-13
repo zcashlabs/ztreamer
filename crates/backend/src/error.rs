@@ -10,10 +10,6 @@ pub enum BackendError {
     /// has no node handle for the request. Maps to `UNAVAILABLE`.
     #[error("{0}")]
     Unavailable(String),
-    /// The node refused the request's content, for example a transaction that failed
-    /// verification. Maps to `INVALID_ARGUMENT`.
-    #[error("{0}")]
-    Rejected(String),
     /// The backend answered with something it should not have. Maps to `INTERNAL`.
     #[error("{0}")]
     Unexpected(String),
@@ -34,7 +30,6 @@ impl From<BackendError> for Status {
     fn from(error: BackendError) -> Self {
         match error {
             BackendError::Unavailable(message) => Self::unavailable(message),
-            BackendError::Rejected(message) => Self::invalid_argument(message),
             BackendError::Unexpected(message) => Self::internal(message),
             BackendError::Unimplemented(message) => Self::unimplemented(message),
         }
@@ -52,10 +47,6 @@ mod tests {
             tonic::Code::Unavailable
         );
         assert_eq!(
-            Status::from(BackendError::Rejected("b".into())).code(),
-            tonic::Code::InvalidArgument
-        );
-        assert_eq!(
             Status::from(BackendError::Unexpected("c".into())).code(),
             tonic::Code::Internal
         );
@@ -63,6 +54,6 @@ mod tests {
             Status::from(BackendError::Unimplemented("d".into())).code(),
             tonic::Code::Unimplemented
         );
-        assert_eq!(Status::from(BackendError::Rejected("b".into())).message(), "b");
+        assert_eq!(Status::from(BackendError::Unavailable("a".into())).message(), "a");
     }
 }

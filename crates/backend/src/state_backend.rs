@@ -20,7 +20,7 @@ use zakura_chain::{
 pub use zakura_node_services::block_memory::{BlockHandle, TransactionHandle};
 use ztreamer_snapshot::{manifest_entry::Frontiers, pool::PoolRoots};
 
-use crate::BackendError;
+use crate::{BackendError, Submission};
 
 /// Chain state and node access for the service, behind one interface.
 ///
@@ -91,11 +91,15 @@ pub trait StateBackend: Send + Sync + 'static {
     /// Every transaction in the node's mempool.
     async fn mempool_transactions(&self) -> Result<Vec<UnminedTx>, BackendError>;
 
-    /// Verifies and queues a transaction. Returns its id.
+    /// Verifies and queues a transaction in the node's mempool.
+    ///
+    /// A node that refuses the transaction gives [`Submission::Rejected`] with the code and the
+    /// message that its `sendrawtransaction` RPC answers. A backend that cannot reach the node,
+    /// or a node that cannot take transactions now, gives a [`BackendError`].
     async fn submit_transaction(
         &self,
         transaction: Transaction,
-    ) -> Result<transaction::Hash, BackendError>;
+    ) -> Result<Submission, BackendError>;
 
     /// The fee per logical action that the node recommends for a transaction to be mined in the
     /// next block. Fails with [`BackendError::Unimplemented`] on a node that has no fee

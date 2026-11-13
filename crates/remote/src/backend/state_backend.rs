@@ -24,8 +24,8 @@ use zakura_rpc::{
 };
 use zakura_state::HashOrHeight;
 use ztreamer_backend::{
-    AddressUtxo, BackendError, BlockHandle, MinedTransaction, StandardFee, StateBackend, Subtrees,
-    TreeState,
+    AddressUtxo, BackendError, BlockHandle, MinedTransaction, Rejection, StandardFee, StateBackend,
+    Submission, Subtrees, TreeState,
 };
 
 use super::{
@@ -243,20 +243,26 @@ impl StateBackend for RemoteBackend {
     async fn submit_transaction(
         &self,
         transaction: Transaction,
-    ) -> Result<transaction::Hash, BackendError> {
+    ) -> Result<Submission, BackendError> {
         let bytes = transaction.zcash_serialize_to_vec().map_err(|error| {
-            BackendError::Rejected(format!("transaction does not serialize: {error}"))
+            BackendError::Unexpected(format!("transaction does not serialize: {error}"))
         })?;
         match self.node.send_raw_transaction(&bytes).await {
-            Ok(sent) => Ok(sent.hash()),
+            Ok(sent) => Ok(Submission::Accepted(sent.hash())),
             // Warm-up and a method that the listener does not serve are node errors, not
             // transaction errors.
             Err(error) if error.is_retryable() || error.is_method_not_found() => {
                 Err(NodeCallError(error).into())
             }
-            Err(RpcError::Rpc { code, message, .. }) => Err(BackendError::Rejected(format!(
-                "remote zakura rejected transaction: {message} ({code})"
-            ))),
+            // The node answered with an error: it refused the transaction. The wallet gets the
+            // code and the message of the node, as `lightwalletd` passes them on.
+            Err(RpcError::Rpc { code, message, .. }) => i32::try_from(code.0)
+                .map(|code| Submission::Rejected(Rejection::new(code, message)))
+                .map_err(|_| {
+                    BackendError::Unexpected(format!(
+                        "remote zakura sent an error code out of range: {code}"
+                    ))
+                }),
             Err(error) => Err(NodeCallError(error).into()),
         }
     }

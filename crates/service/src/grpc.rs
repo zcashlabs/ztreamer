@@ -110,6 +110,12 @@ impl CompactTxStreamer for CompactService {
         Ok(Response::new(self.ping()?))
     }
 
+    /// Submits a raw transaction to the node, with the answers of `lightwalletd`.
+    ///
+    /// The call fails with `INVALID_ARGUMENT` for empty data and for data over 2,000,000 bytes,
+    /// and with `UNAVAILABLE` when the node cannot take transactions now. Otherwise it succeeds:
+    /// `error_code` 0 and the txid in hex in `error_message` for an accepted transaction, or the
+    /// JSON-RPC error code and message of the node's `sendrawtransaction` for a refused one.
     async fn send_transaction(
         &self,
         request: Request<proto::RawTransaction>,
