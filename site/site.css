@@ -2,7 +2,7 @@
 :root{
   --bg:#171415;--panel:#211d1e;--muted:#2a2627;--rule:#363132;
   --ink:#f4f4f4;--dim:#a3a3a3;--faint:#6f6a6b;--gold:var(--ink);
-  --zaino:#8a8485;--zinder:#4f494a;
+  --ztreamer:#3987e5;--zaino:#199e70;--zinder:#c98500; /* dataviz dark slots, validated on --bg */
   --display:"Sora",ui-sans-serif,system-ui,sans-serif;
   --sans:"Manrope",ui-sans-serif,system-ui,sans-serif;
   --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,monospace;
@@ -57,7 +57,7 @@ h1{font:800 clamp(3.25rem,10vw,7.5rem)/1 var(--display);letter-spacing:-.035em}
 .bar i{display:block;font-style:normal;height:2.1rem;min-width:3px;background:var(--zinder);border-radius:2px;position:relative}
 .bar i::after{content:attr(data-v);position:absolute;left:calc(100% + .8rem);top:50%;translate:0 -50%;white-space:nowrap;color:var(--ink)}
 .bar.k{color:var(--ink)}
-.bar.k i{background:var(--ink)}
+.bar.k i{background:var(--ztreamer)}
 .bar.zaino i{background:var(--zaino)}
 
 footer{border-top:1px solid var(--rule)}

@@ -23,7 +23,9 @@ HARDWARE=json.loads((O/'hardware.json').read_text())
 METADATA=json.loads((O/'metadata.json').read_text())
 V=['86bf4b0-limit16','v0.0.1','zaino-d27ec930']
 L=dict(zip(V,['ztreamer v0.1.0','ztreamer v0.0.1','zaino d27ec930']))
-C=dict(zip(V,['#f4f4f4','#a39d9e','#6b6566']))
+# Dark categorical slots 1-3, validated all-pairs on #171415 (CVD and normal vision).
+C=dict(zip(V,['#3987e5','#d95926','#199e70']))
+INK='#f4f4f4'
 if ZT_ONLY: V=V[:2]
 plt.rcParams.update({'font.family':'DejaVu Sans Mono','font.size':10,'axes.titlesize':12,'axes.titleweight':'normal','axes.titlepad':12,'text.color':'#f4f4f4','axes.labelcolor':'#a3a3a3','xtick.color':'#a3a3a3','ytick.color':'#a3a3a3','axes.edgecolor':'#4a4445','axes.spines.top':True,'axes.spines.right':True,'figure.facecolor':'#171415','axes.facecolor':'#171415','savefig.facecolor':'#171415','grid.color':'#ffffff','grid.alpha':.07,'legend.facecolor':'#171415','legend.edgecolor':'#363132','svg.fonttype':'none'})
 
@@ -55,10 +57,10 @@ lines(a[0],'ranges','complete_p50_us',1000);style(a[0],'Range median latency ↓
 lines(a[1],'concurrency','blocks_per_second',1e6,'clients');style(a[1],'Concurrent throughput ↑','Million blocks / second');a[1].set_ylim(bottom=0)
 lines(a[2],'concurrency','complete_p99_us',1e6,'clients');style(a[2],'Concurrent p99 latency ↓','Complete response · seconds');a[2].set_ylim(bottom=0)
 for v in V:
- y=val(row(v,'concurrency',clients=128),'complete_p99_us',1e6);a[2].annotate(f'{y:.2f} s',(3,y),xytext=(-6,8),textcoords='offset points',ha='right',color=C[v])
+ y=val(row(v,'concurrency',clients=128),'complete_p99_us',1e6);a[2].annotate(f'{y:.2f} s',(3,y),xytext=(-6,8),textcoords='offset points',ha='right',color=INK)
 times=[val(row(v,'sync'),'wall_seconds') for v in V]
 a[3].barh(range(len(V)),times,color=[C[v] for v in V]);a[3].set_yticks(range(len(V)),[L[v] for v in V]);a[3].invert_yaxis()
-for i,t in enumerate(times):a[3].text(t+3,i,f'{t:.2f} s',va='center',color=C[V[i]])
+for i,t in enumerate(times):a[3].text(t+3,i,f'{t:.2f} s',va='center',color=INK)
 a[3].set_xlim(0,max(times)*1.27);style(a[3],'Wallet download time ↓');a[3].set_xlabel('Seconds · excludes wallet scanning / trial decryption')
 save(fig,'overview')
 
@@ -116,7 +118,7 @@ if ZT_ONLY:
  for i,(v,r) in enumerate(index_runs.items()):
   a[1].barh(i,r['ready_s'],color=index_colors[v],alpha=.35,height=.42)
   a[1].barh(i,r['historical_duration_s'],left=r['historical_start_s'],color=index_colors[v],height=.42)
-  a[1].text(r['ready_s']+2,i,f"{r['ready_s']:.1f} s",va='center',color=index_colors[v])
+  a[1].text(r['ready_s']+2,i,f"{r['ready_s']:.1f} s",va='center',color=INK)
  a[1].set_yticks(range(len(index_runs)),list(index_runs));a[1].set_xlim(0,max(r['ready_s'] for r in INDEX_RUNS)*1.25)
  a[1].set_ylim(-.6,1.8)
  style(a[1],'Startup through serving');a[1].set_xlabel('Seconds since process start')
