@@ -135,10 +135,7 @@ impl CompactService {
         {
             return Err(Status::unavailable("canonical head source is stale"));
         }
-        let permit = Arc::clone(&self.range_streams)
-            .acquire_owned()
-            .await
-            .map_err(|_| Status::unavailable("range stream pool is closed"))?;
+        let permit = self.range_streams.admit().await?;
         let index = Arc::clone(&self.index);
         let ascending = start <= end;
         let durable_tip = snapshot.durable_tip.map(|tip| tip.height);

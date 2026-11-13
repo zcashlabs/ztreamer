@@ -143,6 +143,7 @@ impl Launcher {
             wallet,
         )
         .with_ping_enabled(self.config.servers.ping_very_insecure)
+        .with_max_concurrent_ranges(self.config.servers.limits.max_concurrent_ranges)
         .with_node_version(version);
         let caught_up = CaughtUp { follower, compact, head };
         Ok(if caught_up.reconcile(stage).await?.is_break() {

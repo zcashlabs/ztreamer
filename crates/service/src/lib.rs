@@ -14,4 +14,6 @@ mod project;
 #[cfg(any(test, feature = "test-utils"))]
 pub mod test_utils;
 
-pub use compact::{CompactService, NodeVersion};
+pub use compact::{
+    CompactService, DEFAULT_MAX_CONCURRENT_RANGES, NodeVersion, RANGE_ADMISSION_TIMEOUT,
+};

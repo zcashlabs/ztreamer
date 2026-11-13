@@ -1,5 +1,5 @@
 use super::*;
-use std::{sync::Arc, time::Duration};
+use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 use tokio::sync::watch;
 use tonic::Request;
@@ -9,7 +9,7 @@ use ztreamer_protocol::wire::compact_tx_streamer_server::CompactTxStreamer;
 use ztreamer_sync::head::Readiness;
 
 use crate::{
-    compact::MAX_RANGE_STREAMS,
+    compact::{DEFAULT_MAX_CONCURRENT_RANGES, RANGE_ADMISSION_TIMEOUT},
     test_utils::{EmptyChain, EphemeralService, hash, parsed, range, record},
 };
 
@@ -158,7 +158,7 @@ async fn range_admission_is_shared_and_releases_on_drop() {
     let ctx = EphemeralService::sealed_through(200).await;
     let clone = ctx.service.clone();
     let mut streams = Vec::new();
-    for _ in 0..MAX_RANGE_STREAMS {
+    for _ in 0..DEFAULT_MAX_CONCURRENT_RANGES.get() {
         streams.push(ctx.service.encoded_range(range(0, 200), false).await.unwrap());
     }
     // Poll once to prove the limit applies across service clones.
@@ -187,6 +187,18 @@ async fn range_admission_is_shared_and_releases_on_drop() {
             .await
             .expect("completed response frees a slot")
             .unwrap();
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_full_range_limit_fails_with_unavailable_after_the_admission_timeout() {
+    let ctx = EphemeralService::sealed_through(200).await;
+    let service = ctx.service.with_max_concurrent_ranges(NonZeroUsize::new(1));
+    let _held = service.encoded_range(range(0, 200), false).await.unwrap();
+
+    let started = tokio::time::Instant::now();
+    let error = service.encoded_range(range(0, 200), false).await.err().unwrap();
+    assert_eq!(started.elapsed(), RANGE_ADMISSION_TIMEOUT);
+    assert_eq!(error.code(), tonic::Code::Unavailable);
 }
 
 #[tokio::test]
