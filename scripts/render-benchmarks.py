@@ -28,7 +28,12 @@ TOK=dict(re.findall(r'--([a-z0-9-]+):(#[0-9a-fA-F]{6})',(SITE/'site.css').read_t
 C=dict(zip(V,[TOK['series-v010'],TOK['series-v001'],TOK['series-zaino']]))
 INK,DIM,BG=TOK['ink'],TOK['dim'],TOK['bg']
 if ZT_ONLY: V=V[:2]
-plt.rcParams.update({'font.family':'DejaVu Sans Mono','font.size':10,'axes.titlesize':12,'axes.titleweight':'normal','axes.titlepad':12,'text.color':INK,'axes.labelcolor':DIM,'xtick.color':DIM,'ytick.color':DIM,'axes.edgecolor':TOK['chart-axis'],'axes.spines.top':True,'axes.spines.right':True,'figure.facecolor':BG,'axes.facecolor':BG,'savefig.facecolor':BG,'grid.color':INK,'grid.alpha':.07,'legend.facecolor':BG,'legend.edgecolor':TOK['rule'],'svg.fonttype':'none'})
+# The SVGs are shown through <img>, which cannot use the page's web fonts, so the text is drawn as
+# outlines ('svg.fonttype':'path') in the site's fonts: Sora for titles, JetBrains Mono for the rest.
+# Same look on every machine.
+from matplotlib import font_manager
+for f in ('JetBrainsMono-Regular.ttf','Sora-Bold.ttf'):font_manager.fontManager.addfont(str(REPO/'scripts/fonts'/f))
+plt.rcParams.update({'font.family':'JetBrains Mono','svg.hashsalt':'ztreamer','font.size':10,'axes.titlesize':12,'axes.titleweight':'normal','axes.titlepad':12,'text.color':INK,'axes.labelcolor':DIM,'xtick.color':DIM,'ytick.color':DIM,'axes.edgecolor':TOK['chart-axis'],'axes.spines.top':True,'axes.spines.right':True,'figure.facecolor':BG,'axes.facecolor':BG,'savefig.facecolor':BG,'grid.color':INK,'grid.alpha':.07,'legend.facecolor':BG,'legend.edgecolor':TOK['rule'],'svg.fonttype':'path'})
 
 def row(v,suite,case=None,clients=None):return next(x for x in ROWS if x['label']==v and x['suite']==suite and (case is None or x['case']==case) and (clients is None or int(x['clients'])==clients))
 def val(r,k,scale=1):return float(r[k])/scale if r['status']=='ok' and r[k] else np.nan
@@ -38,7 +43,7 @@ def style(ax,title,ylabel='',log=False):
 def figgrid(title,subtitle,nrows=1,ncols=2,size=(15,6.5),legend=True):
  fig,axes=plt.subplots(nrows,ncols,figsize=size,squeeze=False)
  fig.subplots_adjust(left=.085,right=.97,bottom=.12,top=.79 if nrows==1 else .85,hspace=.5,wspace=.28)
- fig.suptitle(title,x=.06,y=.97,ha='left',fontsize=22,fontweight='bold')
+ fig.suptitle(title,x=.06,y=.97,ha='left',fontsize=22,fontfamily='Sora',fontweight='bold')
  if legend:
   fig.legend(handles=[plt.Line2D([0],[0],color=C[v],marker='o',lw=2,label=L[v]) for v in V],loc='upper left',bbox_to_anchor=(.055,.97-.47/size[1]),frameon=False,ncol=3)
  return fig,axes.ravel()
@@ -153,7 +158,7 @@ subprocess.run([sys.executable,str(Path(__file__).resolve()),'--ztreamer-only'],
 
 # Standalone page: embedded figures, downloadable raw data, searchable table.
 def img(name):
- return f'<img loading="lazy" alt="{name.replace("-", " ")}" src="{ASSETS}{name}.svg?v=20260913">'
+ return f'<img loading="lazy" alt="{name.replace("-", " ")}" src="{ASSETS}{name}.svg?v=20261113">'
 
 def fmt(x):return '—' if not np.isfinite(x) else f'{x:,.3f}'
 columns=[('Version',None,1),('Suite',None,1),('Case',None,1),('Clients',None,1),('Successful n',None,1),('Status',None,1),('p50 ms','complete_p50_us',1000),('p95 ms','complete_p95_us',1000),('p99 ms','complete_p99_us',1000),('Max ms','complete_max_us',1000),('First p50 ms','first_p50_us',1000),('First p99 ms','first_p99_us',1000),('Blocks/s','blocks_per_second',1),('MB/s','protobuf_bytes_per_second',1e6),('Wall s','wall_seconds',1)]
