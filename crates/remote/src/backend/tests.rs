@@ -8,7 +8,7 @@ use std::{
 
 use super::*;
 use crate::{
-    RpcClient, RpcCode,
+    RpcClient, RpcCode, RpcError,
     test_utils::{MockNode, Reply},
 };
 use sapling_crypto::Node as SaplingNode;
@@ -117,6 +117,20 @@ async fn block_parses_the_raw_answer() {
     assert!(backend.block(block::Hash([0x11; 32])).await.unwrap().is_none());
     let error = backend.block(block::Hash([0; 32])).await.unwrap_err();
     assert!(matches!(error, BackendError::Unexpected(_)), "{error}");
+}
+
+#[tokio::test]
+async fn block_at_height_parses_the_raw_answer() {
+    let mock = mainnet(1, |_, params| match params[0].as_str().unwrap() {
+        "2" => Reply::Error { code: RpcCode::MISC, message: RpcError::ABOVE_TIP_MESSAGE },
+        _ => Reply::Result(serde_json::to_value(HexData(BLOCK_MAINNET_1_BYTES.clone())).unwrap()),
+    })
+    .await;
+    let backend = backend(&mock).await;
+    let expected = block_1();
+    let block = backend.block_at_height(block::Height(1)).await.unwrap().unwrap();
+    assert_eq!(block.zcash_serialize_to_vec().unwrap(), expected.zcash_serialize_to_vec().unwrap());
+    assert!(backend.block_at_height(block::Height(2)).await.unwrap().is_none());
 }
 
 #[tokio::test]

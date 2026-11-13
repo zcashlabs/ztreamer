@@ -7,7 +7,7 @@ use crate::{CompactService, NodeVersion};
 use prost::Message as _;
 use sapling_crypto::Node as SaplingNode;
 use std::{
-    collections::HashSet,
+    collections::{BTreeMap, HashSet},
     ops::RangeInclusive,
     sync::Arc,
     time::{Duration, Instant},
@@ -68,6 +68,13 @@ impl StateBackend for EmptyChain {
     }
 
     async fn block(&self, _hash: block::Hash) -> Result<Option<BlockHandle>, BackendError> {
+        Ok(None)
+    }
+
+    async fn block_at_height(
+        &self,
+        _height: block::Height,
+    ) -> Result<Option<BlockHandle>, BackendError> {
         Ok(None)
     }
 
@@ -144,6 +151,115 @@ impl StateBackend for EmptyChain {
     }
 }
 
+/// A [`StateBackend`] whose node has full blocks by height that the index may not have, with
+/// the tree state after each of them. It answers every other request as [`EmptyChain`] does.
+#[derive(Clone, Debug, Default)]
+pub struct NodeBlocks(BTreeMap<block::Height, (BlockHandle, TreeState)>);
+
+impl NodeBlocks {
+    /// Adds `block` at its coinbase height, and `trees`, the tree state after it.
+    pub fn with_block(mut self, block: Arc<block::Block>, trees: TreeState) -> Self {
+        let height = block.coinbase_height().expect("the block has a coinbase height");
+        self.0.insert(height, (block.into(), trees));
+        self
+    }
+}
+
+#[tonic::async_trait]
+impl StateBackend for NodeBlocks {
+    fn network(&self) -> Network {
+        EmptyChain.network()
+    }
+
+    async fn tip_height(&self) -> Result<Option<block::Height>, BackendError> {
+        EmptyChain.tip_height().await
+    }
+
+    async fn block(&self, hash: block::Hash) -> Result<Option<BlockHandle>, BackendError> {
+        EmptyChain.block(hash).await
+    }
+
+    async fn block_at_height(
+        &self,
+        height: block::Height,
+    ) -> Result<Option<BlockHandle>, BackendError> {
+        Ok(self.0.get(&height).map(|(block, _)| block.clone()))
+    }
+
+    async fn transaction(
+        &self,
+        hash: transaction::Hash,
+    ) -> Result<Option<MinedTransaction>, BackendError> {
+        EmptyChain.transaction(hash).await
+    }
+
+    async fn tree_state(&self, hash: block::Hash) -> Result<TreeState, BackendError> {
+        let trees = self.0.values().find(|(block, _)| block.hash() == hash);
+        Ok(trees.map(|(_, trees)| trees.clone()).unwrap_or_default())
+    }
+
+    async fn sapling_subtrees(
+        &self,
+        start: NoteCommitmentSubtreeIndex,
+        limit: Option<NoteCommitmentSubtreeIndex>,
+    ) -> Result<Subtrees<SaplingNode>, BackendError> {
+        EmptyChain.sapling_subtrees(start, limit).await
+    }
+
+    async fn orchard_subtrees(
+        &self,
+        start: NoteCommitmentSubtreeIndex,
+        limit: Option<NoteCommitmentSubtreeIndex>,
+    ) -> Result<Subtrees<orchard::tree::Node>, BackendError> {
+        EmptyChain.orchard_subtrees(start, limit).await
+    }
+
+    async fn ironwood_subtrees(
+        &self,
+        start: NoteCommitmentSubtreeIndex,
+        limit: Option<NoteCommitmentSubtreeIndex>,
+    ) -> Result<Subtrees<ironwood::tree::Node>, BackendError> {
+        EmptyChain.ironwood_subtrees(start, limit).await
+    }
+
+    async fn address_transaction_ids(
+        &self,
+        address: transparent::Address,
+        heights: RangeInclusive<block::Height>,
+    ) -> Result<Vec<transaction::Hash>, BackendError> {
+        EmptyChain.address_transaction_ids(address, heights).await
+    }
+
+    async fn address_balance(
+        &self,
+        addresses: HashSet<transparent::Address>,
+    ) -> Result<Amount<NonNegative>, BackendError> {
+        EmptyChain.address_balance(addresses).await
+    }
+
+    async fn address_utxos(
+        &self,
+        addresses: HashSet<transparent::Address>,
+    ) -> Result<Vec<AddressUtxo>, BackendError> {
+        EmptyChain.address_utxos(addresses).await
+    }
+
+    async fn mempool_transactions(&self) -> Result<Vec<UnminedTx>, BackendError> {
+        EmptyChain.mempool_transactions().await
+    }
+
+    async fn submit_transaction(
+        &self,
+        transaction: Transaction,
+    ) -> Result<Submission, BackendError> {
+        EmptyChain.submit_transaction(transaction).await
+    }
+
+    async fn standard_fee(&self) -> Result<StandardFee, BackendError> {
+        EmptyChain.standard_fee().await
+    }
+}
+
 /// A [`CompactService`] over a temporary index and an [`EmptyChain`], and the [`HeadFollower`]
 /// that publishes its snapshots.
 ///
@@ -164,6 +280,16 @@ impl EphemeralService {
     /// Writes `records` into a new temporary index, seals the ranges through `seal_through`, and
     /// builds the service over it. With no records, the index stays empty.
     pub async fn with_records(records: &[CompactBlockRecord], seal_through: Option<u32>) -> Self {
+        Self::with_backend(records, seal_through, EmptyChain).await
+    }
+
+    /// Writes `records` as [`with_records`](Self::with_records) does, and builds the service
+    /// over `backend`.
+    pub async fn with_backend(
+        records: &[CompactBlockRecord],
+        seal_through: Option<u32>,
+        backend: impl StateBackend,
+    ) -> Self {
         let dir = tempfile::tempdir().unwrap();
         let index = Arc::new(
             Index::open(dir.path(), 512 * 1024 * 1024, "Mainnet", block::Hash([9; 32])).unwrap(),
@@ -173,13 +299,9 @@ impl EphemeralService {
             records => ztreamer_index::test_utils::populate(&index, records, seal_through),
         };
         let follower = HeadFollower::new(Arc::clone(&index), state);
-        let service = CompactService::with_backend(
-            Arc::clone(&index),
-            follower.subscribe(),
-            "main",
-            EmptyChain,
-        )
-        .with_node_version(EmptyChain::node_version());
+        let service =
+            CompactService::with_backend(Arc::clone(&index), follower.subscribe(), "main", backend)
+                .with_node_version(EmptyChain::node_version());
         Self { service, follower, index, state, dir }
     }
 

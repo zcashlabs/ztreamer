@@ -3,14 +3,22 @@ use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 use tokio::sync::watch;
 use tonic::Request;
-use ztreamer_chain::codec::CompactBlockRecord;
+use zakura_chain::{block::Block, orchard, sapling, serialization::ZcashDeserializeInto as _};
+use zakura_test::vectors::BLOCK_MAINNET_1687121_BYTES;
+use ztreamer_backend::TreeState;
+use ztreamer_chain::{
+    codec::{CompactBlockRecord, TreeSizes},
+    parser::parse_block,
+    test_utils::grow_chain,
+    types::RawIndexBlock,
+};
 use ztreamer_index::{index::BlockId, ingest::OrderedBuilder};
 use ztreamer_protocol::wire::compact_tx_streamer_server::CompactTxStreamer;
 use ztreamer_sync::head::Readiness;
 
 use crate::{
     compact::{DEFAULT_MAX_CONCURRENT_RANGES, RANGE_ADMISSION_TIMEOUT},
-    test_utils::{EmptyChain, EphemeralService, hash, parsed, range, record},
+    test_utils::{EmptyChain, EphemeralService, NodeBlocks, hash, parsed, range, record},
 };
 
 #[tokio::test]
@@ -307,4 +315,66 @@ async fn descending_range_from_the_volatile_head_survives_an_advance() {
         heights.push(block.unwrap().height);
     }
     assert_eq!(heights, (100..=202).rev().collect::<Vec<_>>());
+}
+
+/// A chain of six blocks. Blocks 4 and 5 hold the transactions of mainnet block 1,687,121 after
+/// their own coinbase. Returns the blocks, the records that the index makes of them, and the
+/// tree state after block 5.
+fn shielded_chain() -> (Vec<Arc<Block>>, Vec<CompactBlockRecord>, TreeState) {
+    let mut chain = Vec::new();
+    grow_chain(&mut chain, 5, 0);
+    let shielded: Block = BLOCK_MAINNET_1687121_BYTES.zcash_deserialize_into().unwrap();
+    // A block hash covers only the header, so the extra transactions keep the chain linked.
+    for block in &mut chain[4..] {
+        block.transactions.extend(shielded.transactions[1..].iter().cloned());
+    }
+    let mut sizes = TreeSizes::default();
+    let records: Vec<_> = chain
+        .iter()
+        .map(|block| {
+            let raw = RawIndexBlock::try_from(block).unwrap();
+            let record = parse_block(&raw).unwrap().into_record(sizes).unwrap();
+            sizes = record.end_tree_sizes;
+            record
+        })
+        .collect();
+    assert!(sizes.sapling > 0 && sizes.orchard > 0 && sizes.ironwood == 0, "{sizes:?}");
+    let sapling_leaf = sapling::tree::NoteCommitmentUpdate::from_bytes(&[1; 32]).unwrap();
+    let sapling: sapling::tree::NoteCommitmentTree =
+        vec![sapling_leaf; sizes.sapling as usize].into();
+    let orchard: orchard::tree::NoteCommitmentTree =
+        vec![orchard::tree::NoteCommitmentUpdate::from(1); sizes.orchard as usize].into();
+    let trees = TreeState {
+        sapling: Some(Arc::new(sapling)),
+        orchard: Some(Arc::new(orchard)),
+        ironwood: None,
+    };
+    (chain.into_iter().map(Arc::new).collect(), records, trees)
+}
+
+fn at_height(height: u32) -> Request<proto::BlockId> {
+    Request::new(proto::BlockId { height: u64::from(height), hash: Vec::new() })
+}
+
+#[tokio::test]
+async fn block_above_the_tip_comes_from_the_node_as_the_index_serves_it() {
+    let (chain, records, trees) = shielded_chain();
+    let node = NodeBlocks::default().with_block(Arc::clone(&chain[5]), trees);
+    let ctx = EphemeralService::with_backend(&records[..5], None, node).await;
+    let indexed = EphemeralService::with_records(&records, None).await;
+
+    let block = ctx.service.get_block(at_height(5)).await.unwrap().into_inner();
+    let expected = indexed.service.get_block(at_height(5)).await.unwrap().into_inner();
+    assert_eq!(block.to_bytes(), expected.to_bytes());
+
+    // The node has no block 6. A hash outside the index does not reach the node.
+    assert_eq!(
+        ctx.service.get_block(at_height(6)).await.unwrap_err().code(),
+        tonic::Code::OutOfRange
+    );
+    let by_hash = proto::BlockId { height: 0, hash: chain[5].hash().0.to_vec() };
+    assert_eq!(
+        ctx.service.get_block(Request::new(by_hash)).await.unwrap_err().code(),
+        tonic::Code::NotFound
+    );
 }

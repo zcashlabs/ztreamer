@@ -1,4 +1,7 @@
-//! Block and block-range requests, served from the volatile head and the compact index.
+//! Block and block-range requests, served from the volatile head and the compact index. A
+//! block request by height above the visible tip is served from the node.
+
+mod node;
 
 use std::sync::Arc;
 
@@ -9,7 +12,8 @@ use ztreamer_chain::codec::{EncodedBlockRecord, ProtobufBlockRecord, StoredBlock
 use ztreamer_index::index::IndexError;
 use ztreamer_protocol::{EncodedCompactBlock, proto};
 
-use super::{CompactService, RpcStream, ensure_ready, reorganized};
+use self::node::node_record;
+use super::{BlockKey, CompactService, RpcStream, ensure_ready, reorganized};
 use crate::project::{PoolSelection, add_transparent_txs, project_block};
 
 impl CompactService {
@@ -19,7 +23,7 @@ impl CompactService {
         request: proto::BlockId,
         nullifiers: bool,
     ) -> Result<proto::CompactBlock, Status> {
-        let record = self.record_as::<ProtobufBlockRecord>(request).await?;
+        let record = self.block_as::<ProtobufBlockRecord>(request).await?;
         let pools = PoolSelection::from_request(&[]).expect("empty pool selection is valid");
         Ok(project_block(record.0, pools, nullifiers))
     }
@@ -30,13 +34,37 @@ impl CompactService {
         request: proto::BlockId,
         nullifiers: bool,
     ) -> Result<EncodedCompactBlock, Status> {
-        let block = self.record_as::<EncodedBlockRecord>(request).await?.block;
+        let block = self.block_as::<EncodedBlockRecord>(request).await?.block;
         if !nullifiers {
             return Ok(block);
         }
         PoolSelection::from_request(&[])
             .expect("empty pool selection is valid")
             .project_encoded_block(&block, true)
+    }
+
+    /// The block that `request` names, as `T`.
+    ///
+    /// A height above the visible tip comes from the node, as lightwalletd serves a block that
+    /// is not in its cache. A stale head source does not stop this: the block comes from the
+    /// best chain of the node, not from the head that the service follows. Every other request,
+    /// a hash included, comes from the volatile head or the index.
+    async fn block_as<T: StoredBlock + Send + 'static>(
+        &self,
+        request: proto::BlockId,
+    ) -> Result<T, Status> {
+        let snapshot = self.snapshot();
+        ensure_ready(&snapshot)?;
+        match BlockKey::try_from(request)? {
+            BlockKey::Height(height)
+                if snapshot.visible_tip.is_none_or(|tip| height > tip.height) =>
+            {
+                node_record(self.backend.as_ref(), height)
+                    .await
+                    .map(|record| T::from_record(&record))
+            }
+            key => self.indexed_record_as(&snapshot, key).await,
+        }
     }
 
     /// Answers `GetBlockRange`, or `GetBlockRangeNullifiers` when `nullifiers` is set.

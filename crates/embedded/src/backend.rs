@@ -104,6 +104,26 @@ impl StateBackend for InProcessBackend {
         }
     }
 
+    async fn block_at_height(
+        &self,
+        height: block::Height,
+    ) -> Result<Option<BlockHandle>, BackendError> {
+        let block = match self.read(ReadRequest::Block(height.into())).await? {
+            ReadResponse::Block(block) => block,
+            _ => return Err(unexpected("block")),
+        };
+        match block {
+            Some(block) if block.coinbase_height() != Some(height) => {
+                Err(BackendError::Unexpected(format!(
+                    "Zakura state sent block {} for height {}",
+                    block.hash(),
+                    height.0
+                )))
+            }
+            block => Ok(block),
+        }
+    }
+
     async fn transaction(
         &self,
         hash: transaction::Hash,

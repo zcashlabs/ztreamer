@@ -7,8 +7,7 @@ use futures_util::{StreamExt as _, TryStreamExt as _, future, stream};
 use sapling_crypto::Node as SaplingNode;
 use zakura_chain::{
     amount::{Amount, NonNegative},
-    block::{self, Block},
-    ironwood, orchard,
+    block, ironwood, orchard,
     parameters::Network,
     serialization::ZcashSerialize as _,
     subtree::NoteCommitmentSubtreeIndex,
@@ -31,7 +30,6 @@ use ztreamer_backend::{
 use super::{
     RemoteBackend,
     error::NodeCallError,
-    node_bytes::FromNodeBytes,
     rpc_tree::RpcTree,
     shielded_pool::{IronwoodPool, OrchardPool, SaplingPool},
 };
@@ -50,16 +48,30 @@ impl StateBackend for RemoteBackend {
     }
 
     async fn block(&self, hash: block::Hash) -> Result<Option<BlockHandle>, BackendError> {
-        let raw = match self.node.get_block_raw(HashOrHeight::Hash(hash)).await {
-            Ok(raw) => raw,
-            Err(error) if error.is_block_not_found() => return Ok(None),
-            Err(error) => return Err(NodeCallError(error).into()),
+        let Some(block) = self.fetch_block(HashOrHeight::Hash(hash)).await? else {
+            return Ok(None);
         };
-        let block = Block::from_node_bytes(raw.0).await?;
         if block.hash() != hash {
             return Err(BackendError::Unexpected(format!(
                 "remote zakura sent block {} for {hash}",
                 block.hash()
+            )));
+        }
+        Ok(Some(Arc::new(block).into()))
+    }
+
+    async fn block_at_height(
+        &self,
+        height: block::Height,
+    ) -> Result<Option<BlockHandle>, BackendError> {
+        let Some(block) = self.fetch_block(HashOrHeight::Height(height)).await? else {
+            return Ok(None);
+        };
+        if block.coinbase_height() != Some(height) {
+            return Err(BackendError::Unexpected(format!(
+                "remote zakura sent block {} for height {}",
+                block.hash(),
+                height.0
             )));
         }
         Ok(Some(Arc::new(block).into()))
