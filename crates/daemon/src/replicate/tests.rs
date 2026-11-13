@@ -387,3 +387,30 @@ async fn each_refusal_stops_the_replica_before_a_range_fetch() {
     };
     assert!(error.chain().any(genesis), "{error:?}");
 }
+
+/// A source out of reach stops a replica with an empty index. A replica with a sealed index
+/// continues from its sealed tip.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_source_out_of_reach_stops_only_an_empty_replica() {
+    let snapshot = Snapshot::new().await;
+    let (_chain, node) = snapshot.node().await;
+    let url = node.url().to_string();
+    let source = format!("http://{}/mainnet", free_addr());
+    let run = async |dir: &Path| {
+        let mut config = remote_config(dir, &url, &source);
+        config.index.map_size = NonZeroUsize::new(1 << 30).unwrap();
+        config.sync.index_only = true;
+        let run = timeout(Duration::from_secs(60), daemon(config, SEED, future::pending()));
+        run.await.expect("the replica stops by itself")
+    };
+    let empty = tempfile::tempdir().unwrap();
+    let error = run(empty.path()).await.unwrap_err();
+    assert!(error.chain().any(|error| error.to_string().contains("HTTP request")), "{error:?}");
+
+    let blocks = &snapshot.blocks[..=usize::try_from(9_999 + 10).unwrap()];
+    let sealed = SourceIndex::sealed(&Snapshot::records(blocks), 9_999).into_dir();
+    run(sealed.path()).await.unwrap();
+
+    let state = Index::open_existing(sealed.path(), 1 << 30).unwrap().state().unwrap();
+    assert_eq!(state.durable_tip().map(|tip| tip.height), Some(TIP - SEAL_DEPTH));
+}

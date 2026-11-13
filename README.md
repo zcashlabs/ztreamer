@@ -33,7 +33,7 @@ The arguments of `docker run` replace the default command. Keep the listen flags
 ```console
 docker run -d --name ztreamer -v ztreamer:/var/lib/ztreamer -p 9067:9067 ztreamer \
   --grpc-listen 0.0.0.0:9067 --metrics-listen 0.0.0.0:9999 \
-  --remote-rpc https://user:password@host:8232 --replicate-from https://snapshot.example
+  --remote-rpc https://user:password@host:8232
 ```
 
 To give the embedded node a zakura configuration, mount the file and add `--zakura-config FILE`. The build runs on all x86-64 and aarch64 CPUs. The build arguments are `PROFILE` (default `maxperf`) and `RUSTFLAGS`. To make a build for the CPU type of the build host only, add `--build-arg RUSTFLAGS="-C target-cpu=native"`.
@@ -45,7 +45,7 @@ ztreamerd has two modes. Both modes write the same index and serve the same gRPC
 | Mode | Command | Chain source |
 | --- | --- | --- |
 | Embedded | `ztreamerd --zakura-config zakura.toml` | A zakura node in the ztreamerd process |
-| Remote | `ztreamerd --remote-rpc URL --replicate-from SOURCE` | Sealed ranges from snapshots or peers, then a remote zakura node over JSON-RPC |
+| Remote | `ztreamerd --remote-rpc URL` | Sealed ranges from snapshots or peers, then a remote zakura node over JSON-RPC |
 
 ### Embedded
 
@@ -56,14 +56,16 @@ This is the default mode. The zakura configuration file is optional. The embedde
 
 ### Remote
 
-ztreamerd starts no node. `--remote-rpc` and `--replicate-from` need each other: ztreamerd refuses one without the other. This mode does not serve P2P or JSON-RPC.
+ztreamerd starts no node. `--remote-rpc` selects this mode, and `--replicate-from` and `--snapshot-key` need it. This mode does not serve P2P or JSON-RPC.
 
-First, ztreamerd imports sealed ranges from the one `--replicate-from` source. The remote node verifies the import. Then ztreamerd reads the blocks above the import from the remote node, and follows its head. For each range that it seals above the import, ztreamerd writes the snapshot metadata from the remote node. Thus the Replicator and `export-snapshot` of a replica serve each sealed range. A source is:
+First, ztreamerd imports sealed ranges from the one `--replicate-from` source. On mainnet, the default source is `https://snapshot.ztreamer.sh/mainnet`. On other networks, give `--replicate-from`. The remote node verifies the import. Then ztreamerd reads the blocks above the import from the remote node, and follows its head. For each range that it seals above the import, ztreamerd writes the snapshot metadata from the remote node. Thus the Replicator and `export-snapshot` of a replica serve each sealed range. A source is:
 
 - the `http://` or `https://` base URL of a snapshot; or
 - the `host:port` of a ztreamerd peer. The peer serves the Replicator service on its gRPC listener, without TLS.
 
-The import refuses a manifest that the built-in snapshot key did not sign. It also refuses a manifest of a different network or genesis block.
+The import refuses a manifest that the built-in snapshot key did not sign. To import a snapshot of `export-snapshot`, give its 32-byte Ed25519 verification key as hex: `--snapshot-key HEX`. The import also refuses a manifest of a different network or genesis block.
+
+When the index has sealed ranges and the source is out of reach, ztreamerd logs a warning and reads the blocks above the index from the remote node.
 
 The remote node sets the network (mainnet or testnet). The index must be of the same network. To give the node credentials, use one of these:
 
