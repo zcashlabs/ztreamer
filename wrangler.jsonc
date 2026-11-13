@@ -8,5 +8,8 @@
     { "pattern": "ztreamer.sh", "custom_domain": true }
   ],
   "workers_dev": false,
-  "preview_urls": false
+  "preview_urls": false,
+  // Non-production branch builds run `wrangler preview`, which needs this block.
+  // Previews inherit the top-level assets and compatibility settings.
+  "previews": {}
 }
