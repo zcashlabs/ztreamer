@@ -45,3 +45,21 @@
  .benchmark-report #hardware table{white-space:normal}
  .benchmark-report #hardware th{min-width:7rem}
 }
+/* 2026-11 page: six headline cards, bullet lists, key/value setup table, table filter. */
+.benchmark-report .cards-6{grid-template-columns:repeat(3,minmax(0,1fr))}
+.benchmark-report .cards-6 .card:nth-child(3n+1){border-left:0;padding-left:0}
+.benchmark-report .cards-6 .card:nth-child(n+4){border-top:1px solid var(--rule)}
+.benchmark-report .bullets{margin:.8rem 0 .8rem 1.2rem;line-height:1.65}
+.benchmark-report .bullets li{margin:.35rem 0}
+.benchmark-report code{font:.85em var(--mono)}
+.benchmark-report section img+img{margin-top:1.25rem}
+.benchmark-report .table-wrap{margin:1.25rem 0}
+.benchmark-report table.kv td{white-space:normal;text-align:left}
+.benchmark-report table.kv td:first-child{color:var(--dim);width:11rem}
+.benchmark-report td em{color:var(--faint);font-style:normal}
+.benchmark-report .table-filter{width:min(100%,24rem);padding:.8rem;margin:1rem 0 0;background:transparent;color:var(--ink);border:1px solid var(--rule);border-radius:var(--radius);font:.85rem/1.5 var(--mono)}
+@media(max-width:760px){
+ .benchmark-report .cards-6{grid-template-columns:1fr}
+ .benchmark-report .cards-6 .card{border-left:0!important;padding-left:0!important}
+ .benchmark-report .cards-6 .card+.card{border-top:1px solid var(--rule)}
+}
