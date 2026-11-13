@@ -25,15 +25,17 @@ use std::{
 use crate::ZakuraClient;
 use lru::LruCache;
 use zakura_chain::{
-    block,
+    block::{self, Block},
     parameters::Network,
     subtree::NoteCommitmentSubtreeIndex,
     transaction::{self, UnminedTx},
 };
+use zakura_state::HashOrHeight;
 use ztreamer_backend::{BackendError, Subtrees, TreeState};
 
 use error::NodeCallError;
 use fetched_transaction::FetchedTransaction;
+use node_bytes::FromNodeBytes as _;
 use shielded_pool::Pool;
 
 pub use error::RemoteConnectError;
@@ -119,6 +121,17 @@ impl RemoteBackend {
                 .map_err(NodeCallError)?,
             start,
         )
+    }
+
+    /// Calls `getblock` for `block` with verbosity 0 and decodes the answer. Returns `None` if
+    /// the node has no such block in its best chain. The caller checks that the block is the
+    /// one it asked for.
+    async fn fetch_block(&self, block: HashOrHeight) -> Result<Option<Block>, BackendError> {
+        match self.node.get_block_raw(block).await {
+            Ok(raw) => Block::from_node_bytes(raw.0).await.map(Some),
+            Err(error) if error.is_block_not_found() => Ok(None),
+            Err(error) => Err(NodeCallError(error).into()),
+        }
     }
 
     /// Calls `getrawtransaction` for `id` with verbose 1. Returns `None` if the node does not

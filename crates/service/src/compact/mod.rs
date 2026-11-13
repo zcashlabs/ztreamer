@@ -126,6 +126,16 @@ impl CompactService {
         let snapshot = self.snapshot();
         ensure_ready(&snapshot)?;
         let key = BlockKey::try_from(request)?;
+        self.indexed_record_as(&snapshot, key).await
+    }
+
+    /// The block that `key` names, from the volatile head or the index at the generation of
+    /// `snapshot`. Fails with `NOT_FOUND` if neither has it.
+    async fn indexed_record_as<T: StoredBlock + Send + 'static>(
+        &self,
+        snapshot: &ServingSnapshot,
+        key: BlockKey,
+    ) -> Result<T, Status> {
         let volatile = match key {
             BlockKey::Height(height) => snapshot.volatile(height),
             BlockKey::Hash(hash) => {
@@ -133,7 +143,7 @@ impl CompactService {
             }
         };
         if let Some(record) = volatile {
-            ensure_tip_ready(&snapshot)?;
+            ensure_tip_ready(snapshot)?;
             return Ok(T::from_record(record));
         }
         let index = Arc::clone(&self.index);

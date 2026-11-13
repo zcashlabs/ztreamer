@@ -39,6 +39,17 @@ pub trait StateBackend: Send + Sync + 'static {
     /// The handle retains the embedded node's memory reservation until its last clone drops.
     async fn block(&self, hash: block::Hash) -> Result<Option<BlockHandle>, BackendError>;
 
+    /// A full block from the best chain by height. `None` when the best chain has no block at
+    /// `height`, for example above the tip. The handle retains the embedded node's memory
+    /// reservation until its last clone drops.
+    ///
+    /// An implementation checks that the block it returns is at `height`, and fails with
+    /// [`BackendError::Unexpected`] if the node sent a block at another height.
+    async fn block_at_height(
+        &self,
+        height: block::Height,
+    ) -> Result<Option<BlockHandle>, BackendError>;
+
     /// A mined transaction by id. `None` when it is not in the best chain.
     async fn transaction(
         &self,
