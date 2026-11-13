@@ -9,6 +9,8 @@ Serve or deploy this directory directly. No frontend build is required.
 - `site.css`: shared styles; `benchmarks.css` and `benchmarks.js` provide the
   comparison page's layout and controls.
 - `benchmarks/2026-09-11/`: source CSV/JSON data and generated SVG plots.
+- `brand/`: Zcash Labs "Sealed" mark (accent scheme), favicon and touch icon,
+  taken from the Zcash Labs identity kit. Gold appears only on the Z.
 
 To preview locally from the repository root:
 

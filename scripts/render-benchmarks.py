@@ -23,9 +23,9 @@ HARDWARE=json.loads((O/'hardware.json').read_text())
 METADATA=json.loads((O/'metadata.json').read_text())
 V=['86bf4b0-limit16','v0.0.1','zaino-d27ec930']
 L=dict(zip(V,['ztreamer v0.1.0','ztreamer v0.0.1','zaino d27ec930']))
-C=dict(zip(V,['#008dc1','#e87500','#c77da9']))
+C=dict(zip(V,['#f4f4f4','#a39d9e','#6b6566']))
 if ZT_ONLY: V=V[:2]
-plt.rcParams.update({'font.family':'DejaVu Sans Mono','font.size':10,'axes.titlesize':12,'axes.titleweight':'normal','axes.titlepad':12,'text.color':'#dbcda4','axes.labelcolor':'#dbcda4','xtick.color':'#dbcda4','ytick.color':'#dbcda4','axes.edgecolor':'#dbcda4','axes.spines.top':True,'axes.spines.right':True,'figure.facecolor':'#262626','axes.facecolor':'#262626','savefig.facecolor':'#262626','grid.color':'#dbcda4','grid.alpha':.10,'legend.facecolor':'#262626','legend.edgecolor':'#dbcda4','svg.fonttype':'none'})
+plt.rcParams.update({'font.family':'DejaVu Sans Mono','font.size':10,'axes.titlesize':12,'axes.titleweight':'normal','axes.titlepad':12,'text.color':'#f4f4f4','axes.labelcolor':'#a3a3a3','xtick.color':'#a3a3a3','ytick.color':'#a3a3a3','axes.edgecolor':'#4a4445','axes.spines.top':True,'axes.spines.right':True,'figure.facecolor':'#171415','axes.facecolor':'#171415','savefig.facecolor':'#171415','grid.color':'#ffffff','grid.alpha':.07,'legend.facecolor':'#171415','legend.edgecolor':'#363132','svg.fonttype':'none'})
 
 def row(v,suite,case=None,clients=None):return next(x for x in ROWS if x['label']==v and x['suite']==suite and (case is None or x['case']==case) and (clients is None or int(x['clients'])==clients))
 def val(r,k,scale=1):return float(r[k])/scale if r['status']=='ok' and r[k] else np.nan
@@ -68,7 +68,7 @@ fig.subplots_adjust(left=.29,right=.97,bottom=.09,top=.87,wspace=.18)
 for ax,metric,title in zip(a,['complete_p50_us','complete_p99_us'],['p50 · median ↓','p99 · tail ↓']):
  for i,c in enumerate(cases):
   ys=[val(row(v,'latency',c),metric,1000) for v in V];valid=[y for y in ys if np.isfinite(y)]
-  if valid:ax.plot([min(valid),max(valid)],[i,i],color='#6a6454',lw=1.3)
+  if valid:ax.plot([min(valid),max(valid)],[i,i],color='#4f494a',lw=1.3)
   for v,y in zip(V,ys):
    if np.isfinite(y):ax.scatter(y,i,color=C[v],s=40)
  ax.set_xscale('log');ax.set_yticks(range(len(cases)),cases if ax is a[0] else ['']*len(cases));ax.invert_yaxis();ax.grid(axis='x');ax.set_title(title,loc='left');ax.set_xlabel('Milliseconds · log scale')
@@ -120,7 +120,7 @@ if ZT_ONLY:
  a[1].set_yticks(range(len(index_runs)),list(index_runs));a[1].set_xlim(0,max(r['ready_s'] for r in INDEX_RUNS)*1.25)
  a[1].set_ylim(-.6,1.8)
  style(a[1],'Startup through serving');a[1].set_xlabel('Seconds since process start')
- a[1].legend(handles=[plt.Rectangle((0,0),1,1,color='#dbcda4',alpha=.35,label='Startup / readiness'),plt.Rectangle((0,0),1,1,color='#dbcda4',label='Historical indexing')],loc='upper right',fontsize=8)
+ a[1].legend(handles=[plt.Rectangle((0,0),1,1,color='#f4f4f4',alpha=.35,label='Startup / readiness'),plt.Rectangle((0,0),1,1,color='#f4f4f4',label='Historical indexing')],loc='upper right',fontsize=8)
 save(fig,'historical-indexing')
 
 fig,a=figgrid('Resources during historical indexing','',nrows=1 if ZT_ONLY else 2,ncols=3,size=(16,6.5 if ZT_ONLY else 11))
@@ -167,11 +167,11 @@ head=(SITE/'index.html').read_text().split('<head>',1)[1].split('</head>',1)[0]
 head=re.sub(r'<title>.*?</title>', '<title>ztreamer benchmarks</title>', head)
 head=re.sub(r'<meta (?:name="description"|property="og:description") content="[^"]*">', '', head)
 head=head.replace('content="ztreamer"','content="ztreamer benchmarks"')
-head+='<meta name="description" content="RPC, range, concurrency and wallet-download benchmarks for ztreamer v0.1.0 and v0.0.1, with optional zaino comparison.">\n<link rel="stylesheet" href="benchmarks.css?v=2">'
+head+='<meta name="description" content="RPC, range, concurrency and wallet-download benchmarks for ztreamer v0.1.0 and v0.0.1, with optional zaino comparison.">\n<link rel="stylesheet" href="benchmarks.css?v=3">'
 page='<!doctype html><html lang="en"><head>'+head+'</head><body class="benchmarks-page">'
-page+='<header class="wrap"><a href="./">ztreamer</a><nav><a href="docs.html">docs</a><a href="benchmarks.html" aria-current="page">benchmarks</a><a href="https://github.com/cypherpunktech/ztreamer">source</a></nav></header>'
+page+='<header>'+(SITE/'index.html').read_text().split('<header>',1)[1].split('</header>',1)[0].replace('<a href="benchmarks.html">','<a href="benchmarks.html" aria-current="page">')+'</header>'
 page+='<main class="wrap benchmark-report">'
-page+='<div class="eyebrow">Measured September 11–13, 2026</div><h1>ztreamer v0.1.0 vs v0.0.1</h1><p class="sub">Serving and clean historical indexing benchmarks. Compare <strong>ztreamer v0.1.0</strong> and <strong>v0.0.1</strong>, or include <strong>zaino d27ec930</strong> with the toggle below.</p>'
+page+='<div class="eyebrow">// Measured September 11–13, 2026</div><h1>ztreamer v0.1.0 vs v0.0.1</h1><p class="sub">Serving and clean historical indexing benchmarks. Compare <strong>ztreamer v0.1.0</strong> and <strong>v0.0.1</strong>, or include <strong>zaino d27ec930</strong> with the toggle below.</p>'
 page+='<label class="compare-toggle"><input id="show-zaino" type="checkbox" role="switch"> Show zaino in comparisons</label>'
 page+='<nav class="report-nav" aria-label="Benchmark sections">'+''.join(f'<a href="#{n}">{t}</a>' for n,t in sections)+'<a href="#hardware">Hardware</a><a href="#numbers">All values</a><a href="#data">Raw data</a></nav>'
 page+='<div class="cards" data-zaino-only hidden>'+''.join(f'<div class="card">{title}<b>{body}</b><span>{detail}</span></div>' for title,body,detail in [('10,000-block median',f'{zh/hh:.1f}× latency',f'Zaino {zh:.2f} ms · ztreamer v0.1.0 {hh:.2f} ms'),('128-client p99',f'{zp/hp:.2f}× latency',f'Zaino {zp:.2f} s · ztreamer v0.1.0 {hp:.2f} s'),('Wallet download',f'{zw/hw:.2f}× duration',f'Zaino {zw:.2f} s · ztreamer v0.1.0 {hw:.2f} s')])+'</div>'
@@ -204,7 +204,7 @@ for name,title in sections:
  page+='</section>'
 page+='<details><summary>Methodology and limits</summary><p>One selected repeat per version; no confidence intervals or significance claims. Warmups are excluded. Range counts are 1,000 / 1,000 / 1,000 / 100. RPCs use 100 samples. Concurrency uses ten seconds issuing requests followed by draining in-flight responses, so request populations differ. Wallet download uses 306 chunks and excludes scanning and trial decryption. No cache reset.</p><p>The “busy” address fixture returned no history, and “quiet” returned two transactions per request. Both have zero balance and no UTXOs. These are not heavy address scans. GetMempoolTx returned an empty stream on zaino and v0.1.0; release does not support it. Zaino completed all 27 scenarios with no errors.</p><p>Historical indexing starts with empty persistent indexes. The tagged ztreamer v0.0.1 and v0.1.0 binaries ran sequentially on September 13 against the same static Zakura snapshot, with eight fetch workers and no page-cache reset. The time axes start at process launch; ztreamer includes embedded Zakura startup, and its resources include that node. Zaino’s separate Zebra validator startup and resources are excluded; zaino startup and accumulator rebuild are included in its readiness time. Compilation is excluded for all versions. Final indexed heights differ slightly; exact boundaries and phase times are in the indexing metadata and summary. Height curves show committed progress, sampled once per second. CPU use is averaged over ten-second windows. The ztreamer and zaino resource rows use seconds and hours respectively.</p></details>'
 page+='<section id="numbers"><h2>All measured values</h2><p>Latency in milliseconds. Throughput excludes transport framing. Missing values remain absent.</p><input id="filter" placeholder="Filter method, suite, or version" aria-label="Filter results"><span id="count" aria-live="polite"></span><div class="table-wrap"><table><thead><tr>'+''.join('<th>'+x[0]+'</th>' for x in columns)+'</tr></thead><tbody>'+''.join(table)+'</tbody></table></div></section>'
-page+='<section id="data"><h2>Data for your own plots</h2><p>'+ ' · '.join(f'<a href="{ASSETS}{f}">{label}</a>' for f,label in [('summary.csv','All scenario summaries'),('samples.csv','All serving samples'),('ztreamer-height-time.csv','ztreamer height/time samples'),('height-time.csv','Zaino height/time samples'),('indexing-summary.csv','Indexing summary'),('indexing-metadata.json','Indexing run metadata'),('metadata.json','Run metadata'),('hardware.json','Hardware'),('README.md','Dataset notes')])+'</p></section></main><footer class="wrap"><a href="https://github.com/zakura-core/zakura">built on zakura</a><a href="benchmarks/2026-09-11/README.md">benchmark dataset</a></footer>'
+page+='<section id="data"><h2>Data for your own plots</h2><p>'+ ' · '.join(f'<a href="{ASSETS}{f}">{label}</a>' for f,label in [('summary.csv','All scenario summaries'),('samples.csv','All serving samples'),('ztreamer-height-time.csv','ztreamer height/time samples'),('height-time.csv','Zaino height/time samples'),('indexing-summary.csv','Indexing summary'),('indexing-metadata.json','Indexing run metadata'),('metadata.json','Run metadata'),('hardware.json','Hardware'),('README.md','Dataset notes')])+'</p></section></main><footer>'+(SITE/'index.html').read_text().split('<footer>',1)[1].split('</footer>',1)[0].replace('<nav>','<nav><a href="benchmarks/2026-09-11/README.md">Benchmark dataset</a>')+'</footer>'
 page+='<script src="benchmarks.js" defer></script></body></html>'
 (SITE/'benchmarks.html').write_text(page)
 print('Built',SITE/'benchmarks.html','with',len(ROWS),'scenarios and',len(CURVE),'indexing samples')

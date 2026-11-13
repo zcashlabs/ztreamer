@@ -1,20 +1,20 @@
-![ztreamer](./banner.png)
+![ztreamer by Zcash Labs](./banner.png)
 
 # ztreamer [![GitHub Actions][gha-badge]][gha] [![X][x-badge]][x]
 
-[gha]: https://github.com/cypherpunktech/ztreamer/actions/workflows/ci.yml
-[gha-badge]: https://github.com/cypherpunktech/ztreamer/actions/workflows/ci.yml/badge.svg?branch=master
-[x]: https://x.com/cypherpunk
-[x-badge]: https://img.shields.io/twitter/follow/cypherpunk
+[gha]: https://github.com/zcashlabs/ztreamer/actions/workflows/ci.yml
+[gha-badge]: https://github.com/zcashlabs/ztreamer/actions/workflows/ci.yml/badge.svg?branch=master
+[x]: https://x.com/zcashlabs
+[x-badge]: https://img.shields.io/twitter/follow/zcashlabs
 
-A high-performance [Zcash](https://z.cash) indexer and light-wallet server. ztreamerd reads the chain from a [zakura](https://github.com/zakura-core/zakura) node, writes a compact index, and serves `lightwallet-protocol` from that index.
+A high-performance [Zcash](https://z.cash) indexer and light-wallet server, built by [Zcash Labs](https://zcashlabs.com). ztreamerd reads the chain from a [zakura](https://github.com/zakura-core/zakura) node, writes a compact index, and serves `lightwallet-protocol` from that index.
 
 ## Install
 
 Install [Protocol Buffers](https://protobuf.dev/installation/), then:
 
 ```console
-cargo install --locked --git https://github.com/cypherpunktech/ztreamer ztreamerd
+cargo install --locked --git https://github.com/zcashlabs/ztreamer ztreamerd
 ```
 
 Add `--features otlp` for the trace export over OTLP/gRPC (`--otlp-endpoint`). The default build has no trace export.
