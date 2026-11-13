@@ -85,7 +85,7 @@ pub fn init_telemetry(config: TelemetryConfig) -> Result<TelemetryGuard> {
             eyre::bail!(
                 "the trace export to {} needs the otlp feature, but this binary was built \
                  without it: install with `cargo install --locked --features otlp --git \
-                 https://github.com/cypherpunktech/ztreamer ztreamerd`",
+                 https://github.com/zcashlabs/ztreamer ztreamerd`",
                 otlp.endpoint
             );
         }

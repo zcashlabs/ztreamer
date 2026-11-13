@@ -4,22 +4,32 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ztreamer docs</title>
-<meta name="theme-color" content="#262626">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23dbcda4'/%3E%3Cpath d='M7 8h18v4L13 24h12v0H7v-4l12-12H7z' fill='%23262626'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="site.css?v=2">
+<meta name="description" content="High-performance Zcash indexer and light-wallet server, backed by an embedded Zakura node. Built by Zcash Labs.">
+<meta property="og:title" content="ztreamer docs">
+<meta property="og:description" content="High-performance Zcash indexer and light-wallet server, backed by an embedded Zakura node. Built by Zcash Labs.">
+<meta name="theme-color" content="#171415">
+<link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@700;800&family=Manrope:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="site.css?v=3">
 </head>
 <body>
-<header class="wrap">
-  <a href="./">ztreamer</a>
-  <nav><a href="docs.html" aria-current="page">docs</a><a href="benchmarks.html">benchmarks</a><a href="https://github.com/cypherpunktech/ztreamer">source</a></nav>
+<header>
+  <div class="wrap">
+    <a class="brand" href="./"><img src="brand/mark.svg" alt="" width="40" height="40"><b>ztreamer</b><span>Zcash Labs</span></a>
+    <nav><a href="docs.html" aria-current="page">Docs</a><a href="benchmarks.html">Benchmarks</a><a href="https://github.com/zcashlabs/ztreamer">Source ↗</a></nav>
+  </div>
 </header>
 
 <main class="wrap doc">
+<p class="label r">// Operator guide</p>
 <h1 class="r">docs</h1>
 
 <h2>install</h2>
 <p>Needs <code>protoc</code> on the path.</p>
-<pre><span class="p">$</span> cargo install --git https://github.com/cypherpunktech/ztreamer ztreamerd</pre>
+<pre><span class="p">$</span> cargo install --git https://github.com/zcashlabs/ztreamer ztreamerd</pre>
 
 <h2>run</h2>
 <p>One process. Zakura boots inside it, syncs to the tip, then the index builds and the servers open.</p>
@@ -70,8 +80,11 @@
 <p>The head follower reconciles the index against Zakura's canonical chain on every advance. A reorg deeper than Zakura's non-finalized window triggers a full recovery pass. Both paths are under test.</p>
 </main>
 
-<footer class="wrap">
-  <a href="https://github.com/zakura-core/zakura">built on zakura</a>
+<footer>
+  <div class="wrap">
+    <a class="by" href="https://zcashlabs.com"><img src="brand/mark.svg" alt="" width="40" height="40">A Zcash Labs project</a>
+    <nav><a href="https://github.com/zakura-core/zakura">Built on Zakura</a><a href="https://github.com/zcashlabs">GitHub</a><a href="https://x.com/zcashlabs">X</a></nav>
+  </div>
 </footer>
 </body>
 </html>
