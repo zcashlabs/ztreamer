@@ -145,6 +145,13 @@ use tables::{SealedRange, Tables, range_start};
 use writer::IndexWriter;
 use ztreamer_chain::codec::RANGE_SIZE;
 
+/// The LMDB reader slots of the environment. A thread holds a slot from its first read
+/// transaction until it ends: the transactions are thread-local. Thus the limit is above the
+/// 512 threads of the default Tokio blocking pool, which serve the index reads of gRPC, plus the
+/// threads of the block pipeline. LMDB's default is 126, and a burst of reads on new blocking
+/// threads used all of them: `MDB_READERS_FULL`. A slot is 64 bytes of the lock file.
+const MAX_READERS: u32 = 1_024;
+
 pub const SCHEMA_VERSION: u32 = 1;
 pub const PERSIST_DEPTH: u32 = 10;
 pub const SEAL_DEPTH: u32 = 100;
@@ -201,7 +208,13 @@ impl Index {
         check: impl FnOnce(&Metadata, &mut RwTxn<'_>) -> Result<(), IndexError>,
     ) -> Result<Self, IndexError> {
         // SAFETY: callers must not open this path with incompatible LMDB options in this process.
-        let env = unsafe { EnvOpenOptions::new().map_size(map_size).max_dbs(5).open(path)? };
+        let env = unsafe {
+            EnvOpenOptions::new()
+                .map_size(map_size)
+                .max_dbs(5)
+                .max_readers(MAX_READERS)
+                .open(path)?
+        };
         let mut txn = env.write_txn()?;
         let tables = Tables::open(&env, &mut txn)?;
         check(&tables.metadata, &mut txn)?;

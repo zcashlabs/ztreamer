@@ -2,7 +2,7 @@ use super::*;
 use crate::{
     index::range_meta::{VerifyState, full_meta},
     ingest::OrderedBuilder,
-    test_utils::open_index,
+    test_utils::{open_index, populate},
 };
 use ztreamer_chain::{
     codec::{CodecError, ProtobufBlockRecord, StoredBlock, decode_range_record, encode_range},
@@ -1194,4 +1194,27 @@ fn branch_hash(height: u32) -> block::Hash {
     let mut hash = hash(height);
     hash.0[31] = 1;
     hash
+}
+
+#[test]
+fn hundreds_of_threads_read_at_the_same_time() {
+    // LMDB's default of 126 reader slots refuses the 127th thread with `MDB_READERS_FULL`.
+    let dir = tempfile::tempdir().unwrap();
+    let index = open_index(dir.path());
+    populate(&index, &[record(0, Vec::new())], None);
+    // Each thread opens its snapshot, then holds it until every thread has tried to open one.
+    let barrier = std::sync::Barrier::new(300);
+    let opened = std::thread::scope(|scope| {
+        let threads: Vec<_> = (0..300)
+            .map(|_| {
+                scope.spawn(|| {
+                    let snapshot = index.latest();
+                    barrier.wait();
+                    snapshot.map(|snapshot| snapshot.state().durable_tip()).is_ok()
+                })
+            })
+            .collect();
+        threads.into_iter().map(|thread| thread.join().unwrap()).filter(|&opened| opened).count()
+    });
+    assert_eq!(opened, 300);
 }
