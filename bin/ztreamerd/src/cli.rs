@@ -5,6 +5,7 @@ use std::{
     net::SocketAddr,
     num::{NonZeroU32, NonZeroUsize},
     path::PathBuf,
+    time::Duration,
 };
 
 use clap::{Args, Parser, Subcommand};
@@ -12,8 +13,8 @@ use ed25519_zebra::VerificationKey;
 use eyre::{Result, eyre};
 use hex::FromHex as _;
 use ztreamer_daemon::{
-    DaemonConfig, GrpcLimits, IndexConfig, Mode, RemoteConfig, ReplicaSource, ServerConfig,
-    SyncConfig, TelemetryConfig, TlsFiles, run_daemon,
+    DaemonConfig, GrpcLimits, IndexConfig, Mode, ReadinessConfig, RemoteConfig, ReplicaSource,
+    ServerConfig, SyncConfig, TelemetryConfig, TlsFiles, run_daemon,
 };
 use ztreamer_remote::NodeUrl;
 use ztreamer_sync::pipeline::PipelineConfig;
@@ -119,6 +120,17 @@ struct DaemonArgs {
     #[arg(long, default_value = "127.0.0.1:9999")]
     metrics_listen: SocketAddr,
 
+    /// Maximum age in seconds of the header time of the served tip. When the tip is older, the
+    /// standard gRPC health (grpc.health.v1, service "") is NOT_SERVING. The health is also
+    /// NOT_SERVING when no head poll of the node succeeded in the last 30 s, and during deep
+    /// reorg recovery. 0 turns the age check off.
+    #[arg(
+        long,
+        value_name = "SECONDS",
+        default_value_t = ReadinessConfig::DEFAULT_MAX_TIP_AGE.as_secs()
+    )]
+    max_tip_age: u64,
+
     /// PEM-encoded TLS certificate chain for the gRPC server.
     #[arg(long, value_name = "FILE", requires = "tls_key")]
     tls_cert: Option<PathBuf>,
@@ -191,6 +203,9 @@ impl TryFrom<DaemonArgs> for DaemonConfig {
             limits: GrpcLimits {
                 max_concurrent_streams: NonZeroU32::new(args.grpc_max_concurrent_streams),
                 max_concurrent_ranges: NonZeroUsize::new(args.max_concurrent_blockrange),
+            },
+            readiness: ReadinessConfig {
+                max_tip_age: (args.max_tip_age > 0).then(|| Duration::from_secs(args.max_tip_age)),
             },
         };
         let mode = match args.remote_rpc {
@@ -333,6 +348,18 @@ mod tests {
         assert!(matches!(embedded.mode, Mode::Embedded { zakura_config: None }));
         let remote = DaemonConfig::try_from(parse(&remote(url)).unwrap()).unwrap();
         assert!(matches!(remote.mode, Mode::Remote(_)));
+    }
+
+    #[test]
+    fn max_tip_age_defaults_to_five_minutes_and_zero_turns_it_off() {
+        let readiness = |flags: &[&str]| {
+            let args = Cli::parse_from(["ztreamerd"].iter().chain(flags)).daemon;
+            DaemonConfig::try_from(args).unwrap().servers.readiness
+        };
+        assert_eq!(readiness(&[]), ReadinessConfig::default());
+        assert_eq!(readiness(&[]).max_tip_age, Some(Duration::from_secs(300)));
+        assert_eq!(readiness(&["--max-tip-age", "90"]).max_tip_age, Some(Duration::from_secs(90)));
+        assert_eq!(readiness(&["--max-tip-age", "0"]).max_tip_age, None);
     }
 
     #[test]

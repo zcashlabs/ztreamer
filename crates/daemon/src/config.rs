@@ -8,6 +8,7 @@ use std::{
     num::{NonZeroU32, NonZeroUsize},
     path::PathBuf,
     sync::Arc,
+    time::Duration,
 };
 
 use eyre::{Result, WrapErr};
@@ -101,6 +102,8 @@ pub struct ServerConfig {
     pub ping_very_insecure: bool,
     /// The concurrency limits of the gRPC server.
     pub limits: GrpcLimits,
+    /// The rule of the standard gRPC health status.
+    pub readiness: ReadinessConfig,
 }
 
 impl ServerConfig {
@@ -153,6 +156,30 @@ impl Default for GrpcLimits {
             max_concurrent_streams: Some(Self::DEFAULT_MAX_CONCURRENT_STREAMS),
             max_concurrent_ranges: Some(Self::DEFAULT_MAX_CONCURRENT_RANGES),
         }
+    }
+}
+
+/// The rule of the standard gRPC health status (`grpc.health.v1`, service `""`). The server is
+/// `SERVING` only when all of these are true:
+///
+/// - the head follower runs, and no deep reorg recovery runs;
+/// - the last head poll of the node that succeeded is at most 30 s old;
+/// - the header time of the served tip is at most [`Self::max_tip_age`] old.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ReadinessConfig {
+    /// The maximum age of the header time of the served tip. `None` does not check the age.
+    pub max_tip_age: Option<Duration>,
+}
+
+impl ReadinessConfig {
+    /// The default of [`Self::max_tip_age`]: 5 minutes, as the `/ready` endpoint of Zakura.
+    pub const DEFAULT_MAX_TIP_AGE: Duration = Duration::from_secs(300);
+}
+
+impl Default for ReadinessConfig {
+    /// A maximum tip age of [`Self::DEFAULT_MAX_TIP_AGE`].
+    fn default() -> Self {
+        Self { max_tip_age: Some(Self::DEFAULT_MAX_TIP_AGE) }
     }
 }
 

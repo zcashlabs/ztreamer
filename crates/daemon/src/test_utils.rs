@@ -16,10 +16,14 @@ use ztreamer_protocol::proto::{
 use ztreamer_remote::test_utils::{MockChain, MockNode, Reply};
 use ztreamer_sync::pipeline::PipelineConfig;
 
-use crate::{DaemonConfig, GrpcLimits, IndexConfig, Mode, RemoteConfig, ServerConfig, SyncConfig};
+use crate::{
+    DaemonConfig, GrpcLimits, IndexConfig, Mode, ReadinessConfig, RemoteConfig, ServerConfig,
+    SyncConfig,
+};
 
 /// The configuration of a daemon in the remote mode on the node at `url`, with a 64 MiB index in
-/// `dir` and the import of `replicate_from`. The other values are the defaults of `ztreamerd`.
+/// `dir` and the import of `replicate_from`. The other values are the defaults of `ztreamerd`,
+/// but the health does not check the tip age: the header times of the test chains are of 2016.
 pub(crate) fn remote_config(dir: &Path, url: &str, replicate_from: &str) -> DaemonConfig {
     let remote =
         RemoteConfig::new(url.parse().unwrap(), None, Some(replicate_from.parse().unwrap()))
@@ -33,6 +37,7 @@ pub(crate) fn remote_config(dir: &Path, url: &str, replicate_from: &str) -> Daem
             metrics_listen: "127.0.0.1:9999".parse().unwrap(),
             ping_very_insecure: false,
             limits: GrpcLimits::default(),
+            readiness: ReadinessConfig { max_tip_age: None },
         },
         mode: Mode::Remote(Box::new(remote)),
     }

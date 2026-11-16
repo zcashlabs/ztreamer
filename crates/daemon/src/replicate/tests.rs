@@ -37,7 +37,7 @@ use ztreamer_replicator::{SnapshotExport, snapshot_writer::SnapshotWriter};
 
 use super::*;
 use crate::{
-    DaemonConfig,
+    DaemonConfig, ReadinessConfig,
     launcher::Launcher,
     remote::RemoteNode,
     telemetry::GrpcSpan,
@@ -196,8 +196,16 @@ async fn serve_until<T>(
     node: &MockNode,
     served: impl AsyncFnOnce(SocketAddr) -> T,
 ) -> (BlockId, T) {
+    serve_config_until(config(dir, &node.url().to_string(), snapshot), snapshot, served).await
+}
+
+/// As [`serve_until`], with the replica of `config` on a free gRPC port.
+async fn serve_config_until<T>(
+    mut config: DaemonConfig,
+    snapshot: &Snapshot,
+    served: impl AsyncFnOnce(SocketAddr) -> T,
+) -> (BlockId, T) {
     let grpc = free_addr();
-    let mut config = config(dir, &node.url().to_string(), snapshot);
     config.servers.grpc_listen = grpc;
     let signal = CancellationToken::new();
     let received = signal.clone().cancelled_owned();
@@ -285,6 +293,33 @@ async fn a_fresh_replica_imports_three_epochs_then_follows_the_chain() {
     let index = Index::open_existing(dir.path(), 1 << 30).unwrap();
     assert_eq!(index.state().unwrap().verified_through(), Some(SEALED));
     assert_eq!(range_meta_row(&index, 12_000).state, VerifyState::Verified);
+}
+
+/// The status of the standard gRPC health of the whole server at `grpc`.
+async fn health_status(grpc: SocketAddr) -> ServingStatus {
+    let channel = Endpoint::from_shared(format!("http://{grpc}")).unwrap().connect().await.unwrap();
+    let request = HealthCheckRequest { service: String::new() };
+    HealthClient::new(channel).check(request).await.unwrap().into_inner().status()
+}
+
+/// With the default `--max-tip-age`, a replica serves the tip of a chain of 2016, but its health
+/// is `NOT_SERVING`: the tip is too old. A larger maximum age makes it `SERVING`.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_replica_with_an_old_tip_is_not_serving() {
+    let snapshot = Snapshot::new().await;
+    let (_chain, node) = snapshot.node().await;
+    let url = node.url().to_string();
+    for (max_tip_age, expected) in [
+        (ReadinessConfig::default().max_tip_age, ServingStatus::NotServing),
+        (Some(Duration::from_secs(u64::from(u32::MAX))), ServingStatus::Serving),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = config(&dir, &url, &snapshot);
+        config.servers.readiness = ReadinessConfig { max_tip_age };
+        let (latest, status) = serve_config_until(config, &snapshot, health_status).await;
+        assert_eq!(latest.hash, snapshot.blocks.last().unwrap().hash().0);
+        assert_eq!(status, expected);
+    }
 }
 
 /// The tail seals two ranges after the import. The filler writes their rows from the node of
