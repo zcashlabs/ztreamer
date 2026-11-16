@@ -4766,6 +4766,8 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "heed",
+ "incrementalmerkletree",
+ "libc",
  "metrics",
  "metrics-util",
  "prost",
@@ -4773,6 +4775,7 @@ dependencies = [
  "thiserror",
  "tonic",
  "zakura-chain",
+ "zakura-sapling-crypto",
  "ztreamer-chain",
  "ztreamer-index",
  "ztreamer-protocol",
@@ -4919,6 +4922,7 @@ dependencies = [
  "ztreamer-protocol",
  "ztreamer-remote",
  "ztreamer-service",
+ "ztreamer-snapshot",
  "ztreamer-sync",
 ]
 

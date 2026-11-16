@@ -13,13 +13,18 @@ test-utils = ["ztreamer-chain/test-utils"]
 
 [dependencies]
 heed = { version = "0.22.1", default-features = false }
+incrementalmerkletree.workspace = true
 metrics = "0.24"
 prost = "0.14.4"
+sapling-crypto.workspace = true
 thiserror = "2"
 tonic = "0.14.6"
 zakura-chain.workspace = true
 ztreamer-chain = { path = "../chain", version = "0.1.0" }
 ztreamer-snapshot = { path = "../snapshot", version = "0.1.0" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
 
 [dev-dependencies]
 criterion = "0.8"

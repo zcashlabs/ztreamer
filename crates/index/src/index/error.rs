@@ -64,6 +64,37 @@ pub enum IndexError {
         /// The value that does not match: the length or the digest.
         mismatch: BlobMismatch,
     },
+    #[error(transparent)]
+    Tree(#[from] TreeError),
+}
+
+/// Why a note commitment tree operation failed.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
+pub enum TreeError {
+    /// A compact block holds a note commitment that is not a leaf of its pool.
+    #[error("{pool} note commitment at tree position {position} is not a leaf of the pool")]
+    Commitment {
+        /// The name of the pool.
+        pool: &'static str,
+        /// The position of the commitment in the tree of the pool.
+        position: u64,
+    },
+    /// A tree row that the trees need is missing or does not decode.
+    #[error("{pool} note commitment tree row is missing or damaged")]
+    Row {
+        /// The name of the pool.
+        pool: &'static str,
+    },
+    /// The commitments of a block do not add up to its tree sizes.
+    #[error("the commitments of block {height} do not match its tree sizes")]
+    Sizes {
+        /// The height of the block.
+        height: u32,
+    },
+    /// The index changed after the trees were read: a reorg replaced the blocks, or another
+    /// extension wrote first. The extension wrote nothing. The next one starts again.
+    #[error("the index changed during the tree extension")]
+    Moved,
 }
 
 /// The gRPC status of an index read error: `OUT_OF_RANGE` for a height that the index does not

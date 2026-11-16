@@ -9,6 +9,9 @@
 //! 4. Serve: the head follower, the gRPC server and the `range_meta` filler run until shutdown.
 //!    The gRPC server serves the wallet service, the Replicator, standard health and server
 //!    reflection on one listener.
+//!
+//! From the boot to shutdown, the tree builder keeps the note commitment trees of the index at
+//! its durable tip.
 
 use std::{ops::ControlFlow, sync::Arc};
 
@@ -32,6 +35,7 @@ use crate::{
     reflection::add_reflection,
     tasks::{FillerTask, GrpcTask, HeadFollowerTask, TASK_STOPPED},
     telemetry::GrpcServer,
+    trees::TreeTask,
 };
 
 /// Runs a node through the stages of the daemon, with one configuration and one gRPC server.
@@ -82,6 +86,10 @@ impl Launcher {
         let Some((network, index, components)) = in_stage(span, boot).await? else {
             return Ok(());
         };
+        // The trees follow the blocks from now on: the historical pass, the catch-up and the
+        // head.
+        let trees = TreeTask { index: Arc::clone(&index) };
+        tasks.spawn("tree builder", TASK_STOPPED, trees.run(shutdown.clone()));
         let stage = StageContext {
             index: &index,
             network: &network,

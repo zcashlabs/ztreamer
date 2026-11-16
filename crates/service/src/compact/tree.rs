@@ -8,35 +8,53 @@ use tonic::Status;
 use tracing::Span;
 use zakura_chain::subtree::NoteCommitmentSubtreeIndex;
 use ztreamer_chain::codec::CompactBlockRecord;
+use ztreamer_index::index::IndexError;
 use ztreamer_protocol::proto;
+use ztreamer_snapshot::manifest_entry::Frontiers;
 
 use super::{CompactService, RpcStream, ServingSnapshot};
 
 impl CompactService {
-    /// Answers `GetTreeState`.
+    /// Answers `GetTreeState`: from the note commitment trees of the index when they reach the
+    /// block, else from the backend.
     pub async fn tree_state(&self, request: proto::BlockId) -> Result<proto::TreeState, Status> {
         let record = self.record_as::<CompactBlockRecord>(request).await?;
-        let hash = record.hash;
-        let trees = self.backend.tree_state(hash).await?;
-
+        let frontiers = match self.indexed_frontiers(&record).await? {
+            Some(frontiers) => frontiers,
+            None => Frontiers::from(&self.backend.tree_state(record.hash).await?),
+        };
         Ok(proto::TreeState {
             network: self.chain_name.to_string(),
             height: u64::from(record.height),
-            hash: hash.to_string(),
+            hash: record.hash.to_string(),
             time: record.time,
-            sapling_tree: trees
-                .sapling
-                .map(|tree| hex::encode(tree.to_rpc_bytes()))
-                .unwrap_or_default(),
-            orchard_tree: trees
-                .orchard
-                .map(|tree| hex::encode(tree.to_rpc_bytes()))
-                .unwrap_or_default(),
-            ironwood_tree: trees
-                .ironwood
-                .map(|tree| hex::encode(tree.to_rpc_bytes()))
-                .unwrap_or_default(),
+            sapling_tree: hex::encode(frontiers.sapling),
+            orchard_tree: hex::encode(frontiers.orchard),
+            ironwood_tree: hex::encode(frontiers.ironwood),
         })
+    }
+
+    /// The frontiers at the end of `record` from the trees of the index, at the generation of
+    /// the serving snapshot. `None` if the trees do not reach the block yet, or if the index moved
+    /// to another generation: the backend answers by hash then.
+    async fn indexed_frontiers(
+        &self,
+        record: &CompactBlockRecord,
+    ) -> Result<Option<Frontiers>, Status> {
+        let index = Arc::clone(&self.index);
+        let generation = self.snapshot().generation;
+        let (height, sizes) = (record.height, record.end_tree_sizes);
+        let span = Span::current();
+        tokio::task::spawn_blocking(move || {
+            span.in_scope(|| match index.snapshot(generation) {
+                Ok(snapshot) => snapshot.tree_frontiers(height, sizes),
+                Err(IndexError::Generation { .. }) => Ok(None),
+                Err(error) => Err(error),
+            })
+        })
+        .await
+        .map_err(|error| Status::unavailable(format!("LMDB reader failed: {error}")))?
+        .map_err(Status::from)
     }
 
     fn subtree_stream(
@@ -132,7 +150,31 @@ impl CompactService {
 mod tests {
     use tokio_stream::StreamExt;
 
+    use ztreamer_chain::test_utils::mixed_records;
+    use ztreamer_protocol::proto;
+
     use crate::test_utils::{EphemeralService, hash, record};
+
+    #[tokio::test]
+    async fn tree_state_comes_from_the_index_once_its_trees_reach_the_block() {
+        let records = mixed_records(40);
+        let ctx = EphemeralService::with_records(&records, None).await;
+        let request = |height| proto::BlockId { height, hash: Vec::new() };
+
+        // The trees of the index reach no block: the backend answers, with empty trees.
+        let from_backend = ctx.service.tree_state(request(39)).await.unwrap();
+        assert_eq!(from_backend.sapling_tree, "");
+
+        while ctx.index.extend_trees(2).unwrap().is_some() {}
+        let expected = ctx.index.latest().unwrap().tree_frontiers(39, records[39].end_tree_sizes);
+        let expected = expected.unwrap().unwrap();
+        let tree_state = ctx.service.tree_state(request(39)).await.unwrap();
+        assert_eq!(tree_state.hash, records[39].hash.to_string());
+        assert_eq!(tree_state.sapling_tree, hex::encode(&expected.sapling));
+        assert_eq!(tree_state.orchard_tree, hex::encode(&expected.orchard));
+        assert_eq!(tree_state.ironwood_tree, hex::encode(&expected.ironwood));
+        assert!(!expected.sapling.is_empty() && !expected.orchard.is_empty());
+    }
 
     #[tokio::test]
     async fn subtree_stream_resolves_volatile_completion_blocks() {

@@ -21,6 +21,7 @@ mod tasks;
 mod telemetry;
 #[cfg(test)]
 mod test_utils;
+mod trees;
 
 pub use config::{
     DaemonConfig, GrpcLimits, IndexConfig, Mode, ReadinessConfig, ServerConfig, SyncConfig,
