@@ -173,7 +173,8 @@ impl Launcher {
         let replicator =
             ReplicatorService::new(Arc::clone(stage.index), follower.subscribe(), stage.network);
         let (reporter, health_service) = tonic_health::server::health_reporter();
-        let health = HealthTask::new(reporter, follower.subscribe()).await;
+        let health =
+            HealthTask::new(reporter, follower.subscribe(), config.servers.readiness).await;
         let router = add_reflection(
             grpc_server
                 .add_service(health_service)
