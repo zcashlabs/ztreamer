@@ -3,14 +3,19 @@
 use std::fmt;
 
 use heed::{RoTxn, WithTls};
-use zakura_chain::block;
+use incrementalmerkletree::frontier::Frontier;
+use sapling_crypto::Node as SaplingNode;
+use zakura_chain::{block, orchard};
 
 use super::{
-    IndexError, IndexState, RANGE_SIZE,
+    IndexError, IndexState, RANGE_SIZE, TreeError,
     range_meta::RangeMeta,
     tables::{Tables, range_start},
+    tree_tables::pool_size,
 };
-use ztreamer_chain::codec::{CompactBlockRecord, StoredBlock, decode_range_record};
+use crate::trees::{LowFrontier, TreeNode};
+use ztreamer_chain::codec::{CompactBlockRecord, StoredBlock, TreeSizes, decode_range_record};
+use ztreamer_snapshot::{manifest_entry::Frontiers, pool::Pool};
 
 /// The reads of an [`Index`](super::Index) in one LMDB read transaction. All reads of one
 /// snapshot see one committed state, also when a write commits during the reads.
@@ -154,17 +159,114 @@ impl<'index> IndexSnapshot<'index> {
         self.tables.range_meta.contiguous_rows_end(&self.txn)
     }
 
+    /// The three note commitment tree frontiers at the end of the block at `height`, whose tree
+    /// sizes are `sizes`, in the `zcashd` RPC encoding of `GetTreeState`. A pool with no
+    /// commitments yet has the encoding of the empty tree. Returns `None` if the trees of the
+    /// index do not reach `height` yet: the caller asks the node.
+    ///
+    /// Each pool takes one low frontier and one stored node for each 1 bit of its position from
+    /// level 8 up. It hashes nothing.
+    ///
+    /// ```no_run
+    /// # use ztreamer_chain::codec::CompactBlockRecord;
+    /// # use ztreamer_index::index::{Index, IndexError};
+    /// # fn demo(index: &Index, height: u32) -> Result<(), IndexError> {
+    /// let snapshot = index.latest()?;
+    /// let block: CompactBlockRecord = snapshot.block(height)?;
+    /// if let Some(frontiers) = snapshot.tree_frontiers(height, block.end_tree_sizes)? {
+    ///     assert!(!frontiers.sapling.is_empty());
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn tree_frontiers(
+        &self,
+        height: u32,
+        sizes: TreeSizes,
+    ) -> Result<Option<Frontiers>, IndexError> {
+        if self.trees_through()?.is_none_or(|through| height > through) {
+            return Ok(None);
+        }
+        Ok(Some(Frontiers {
+            sapling: self.tree_rpc_bytes::<SaplingNode>(Pool::Sapling, height, sizes)?,
+            orchard: self.tree_rpc_bytes::<orchard::tree::Node>(Pool::Orchard, height, sizes)?,
+            ironwood: self.tree_rpc_bytes::<orchard::tree::Node>(Pool::Ironwood, height, sizes)?,
+        }))
+    }
+
+    /// The last height that the note commitment trees reach, or `None` if they reach no block.
+    /// [`Index::extend_trees`](super::Index::extend_trees) moves it to the durable tip.
+    pub fn trees_through(&self) -> Result<Option<u32>, IndexError> {
+        self.tables.metadata.get_trees_through(&self.txn)
+    }
+
+    /// The stored node of `pool` at `level` and `index`, if the trees hold it.
+    pub(crate) fn tree_node<H: TreeNode>(
+        &self,
+        pool: Pool,
+        level: u8,
+        index: u64,
+    ) -> Result<Option<H>, IndexError> {
+        self.tables.tree_nodes.get(&self.txn, pool, level, index)
+    }
+
+    /// The low frontier of `pool` at the end of `height`, if the pool has commitments then.
+    pub(crate) fn tree_low<H: TreeNode>(
+        &self,
+        pool: Pool,
+        height: u32,
+    ) -> Result<Option<LowFrontier<H>>, IndexError> {
+        Ok(self.tables.tree_lows.at_or_below(&self.txn, pool, height)?.map(|(_, low)| low))
+    }
+
+    /// The RPC encoding of the tree of `pool` at the end of `height`.
+    fn tree_rpc_bytes<H: TreeNode>(
+        &self,
+        pool: Pool,
+        height: u32,
+        sizes: TreeSizes,
+    ) -> Result<Vec<u8>, IndexError> {
+        let damaged = || IndexError::from(TreeError::Row { pool: pool.as_str() });
+        let Some(position) = pool_size(sizes, pool).checked_sub(1) else {
+            return Ok(H::rpc_bytes(Frontier::empty()));
+        };
+        let low = self
+            .tree_low::<H>(pool, height)?
+            .filter(|low| low.position() == position)
+            .ok_or_else(damaged)?;
+        let frontier =
+            low.frontier(|level, index| self.tree_node(pool, level, index)?.ok_or_else(damaged))?;
+        Ok(H::rpc_bytes(frontier))
+    }
+
     /// Checks sealed-range summaries and every mutable suffix row without rescanning sealed blocks.
     pub fn verify_continuity(&self) -> Result<(), IndexError> {
         let txn = &self.txn;
-        let Tables { sealed_ranges, mutable_blocks, hash_to_height, range_meta, .. } = self.tables;
+        let Tables {
+            sealed_ranges,
+            mutable_blocks,
+            hash_to_height,
+            range_meta,
+            tree_nodes,
+            tree_lows,
+            ..
+        } = self.tables;
         let state = self.state;
+        let trees_through = self.trees_through()?;
         let Some(tip) = state.durable_tip else {
-            if self.tables.has_blocks(txn)? || !range_meta.starts(txn)?.is_empty() {
+            if self.tables.has_blocks(txn)?
+                || !range_meta.starts(txn)?.is_empty()
+                || trees_through.is_some()
+                || !tree_nodes.is_empty(txn)?
+                || !tree_lows.is_empty(txn)?
+            {
                 return Err(IndexError::Metadata);
             }
             return Ok(());
         };
+        if trees_through.is_some_and(|through| through > tip.height) {
+            return Err(IndexError::Metadata);
+        }
         for start in range_meta.starts(txn)? {
             if start != range_start(start) || sealed_ranges.get(txn, start)?.is_none() {
                 return Err(IndexError::RangeMeta { start });

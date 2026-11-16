@@ -13,11 +13,13 @@ use super::{
     BlockId, IndexError, IndexState, RANGE_SIZE,
     range_meta::{RangeMeta, VerifyState},
     tables::{RangeChain, Tables, range_start},
+    tree_tables::pool_size,
 };
 use crate::metrics::{WriteStage, WriteTimer, record_durable_height};
 use ztreamer_chain::codec::{
     CompactBlockRecord, RANGE_FORMAT_VERSION, TreeSizes, encode_range_from_bytes,
 };
+use ztreamer_snapshot::pool::Pool;
 
 /// Batch rows that are not yet in any table, in height order.
 pub(crate) type BatchRows = Peekable<std::vec::IntoIter<EncodedBlock>>;
@@ -138,6 +140,7 @@ impl<'env> IndexWriter<'env> {
         if ancestor.height > old_tip.height {
             return Err(IndexError::Replacement { height: ancestor.height });
         }
+        self.truncate_trees(ancestor.height, ancestor_record.end_tree_sizes)?;
         (delete_start..=old_tip.height).try_for_each(|height| self.delete_mutable_block(height))?;
         records.iter().try_for_each(|record| self.put_block(record))?;
 
@@ -177,6 +180,7 @@ impl<'env> IndexWriter<'env> {
             return Err(IndexError::Replacement { height: common_ancestor.height });
         }
 
+        self.truncate_trees(common_ancestor.height, common.end_tree_sizes)?;
         // Do all deletes before the first put: `canonical` shares its prefix hashes
         // with `old_records`.
         old_records.iter().try_for_each(|record| self.delete_block(record))?;
@@ -289,6 +293,25 @@ impl<'env> IndexWriter<'env> {
     pub(crate) const fn set_tip(&mut self, tip: BlockId, tree_sizes: TreeSizes) {
         self.state.durable_tip = Some(tip);
         self.state.tree_sizes = tree_sizes;
+    }
+
+    /// Deletes the tree rows above `ancestor` if the trees reach above it, and lowers the tree
+    /// height to `ancestor`. `sizes` are the tree sizes at the end of `ancestor`. A reorg calls it
+    /// before it replaces the blocks above `ancestor`.
+    pub(crate) fn truncate_trees(
+        &mut self,
+        ancestor: u32,
+        sizes: TreeSizes,
+    ) -> Result<(), IndexError> {
+        let metadata = self.tables.metadata;
+        if metadata.get_trees_through(&self.txn)?.is_none_or(|through| through <= ancestor) {
+            return Ok(());
+        }
+        for pool in Pool::ALL {
+            self.tables.tree_lows.delete_above(&mut self.txn, pool, ancestor)?;
+            self.tables.tree_nodes.delete_beyond(&mut self.txn, pool, pool_size(sizes, pool))?;
+        }
+        metadata.put_trees_through(&mut self.txn, Some(ancestor))
     }
 
     /// Deletes every sealed range from `start` on, with its metadata, so that its blocks can be

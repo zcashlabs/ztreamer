@@ -2,18 +2,24 @@
 //!
 //! # Tables
 //!
-//! The [`Index`] keeps the chain in five LMDB databases in one environment. All integers are
+//! The [`Index`] keeps the chain in seven LMDB databases in one environment. All integers are
 //! big-endian, so LMDB keeps the height keys in height order.
 //!
 //! ```text
-//! table           key                    value
-//! metadata        "state"                IndexState, 62 or 67 bytes
-//!                 "identity"             chain identity and fixed policy
-//! sealed_ranges   first height, u32      one packed range of RANGE_SIZE records
-//! mutable_blocks  height, u32            one encoded CompactBlockRecord
-//! hash_to_height  block hash, 32 bytes   height, u32
-//! range_meta      first height, u32      one RangeMeta record for a sealed range
+//! table           key                       value
+//! metadata        "state"                   IndexState, 62 or 67 bytes
+//!                 "identity"                chain identity and fixed policy
+//!                 "trees"                   the last height of the tree rows, u32
+//! sealed_ranges   first height, u32         one packed range of RANGE_SIZE records
+//! mutable_blocks  height, u32               one encoded CompactBlockRecord
+//! hash_to_height  block hash, 32 bytes      height, u32
+//! range_meta      first height, u32         one RangeMeta record for a sealed range
+//! tree_nodes      pool, level, index        one stored node of a note commitment tree
+//! tree_lows       pool, height, u32         the low frontier of a pool at the end of a block
 //! ```
+//!
+//! `index/tree_tables.rs` gives the keys of the two tree tables, and the
+//! [`trees`](crate::trees) module what their rows mean.
 //!
 //! # Coverage
 //!
@@ -69,14 +75,19 @@
 //!   sets it.
 //! - Every `range_meta` key is the first height of a sealed range. A sealed range may have no
 //!   `range_meta` row.
+//! - The tree rows describe the blocks from 0 to the `"trees"` height, which is at most the
+//!   durable tip, and no other blocks. An index with no `"trees"` row has no tree rows. A reorg
+//!   that replaces blocks at or below the `"trees"` height deletes their tree rows and lowers it
+//!   to the common ancestor, in the same commit.
 //! - An empty index has no state row, and its block tables and `range_meta` are empty.
 //!
 //! # Writes and generations
 //!
 //! Each write is one LMDB write transaction. It changes the tables, then it commits. If a write
 //! fails, LMDB discards all of its changes. Each commit increases the generation by 1, except
-//! [`Index::put_range_meta`]: range metadata is not part of what a reader sees at a generation,
-//! so writing it does not invalidate the readers of the current generation. An install writes a
+//! [`Index::put_range_meta`] and [`Index::extend_trees`]: range metadata and tree rows are not
+//! part of what a reader sees at a generation, so writing them does not invalidate the readers
+//! of the current generation. An install writes a
 //! `range_meta` row and a range in one commit. Thus an install increases the generation.
 //!
 //! An LMDB read transaction sees one committed state. Each read goes through an [`IndexSnapshot`]:
@@ -96,7 +107,8 @@
 //! - the links between ranges, and the hash chain of the mutable rows,
 //! - the hash entry of each mutable row, and of the first and the last block of each range,
 //! - the tip hash and the tree sizes in the state,
-//! - that each `range_meta` key is the start of a sealed range.
+//! - that each `range_meta` key is the start of a sealed range,
+//! - that the tree rows reach no block above the durable tip.
 //!
 //! It does not decode the blocks inside a range. Thus it does not examine their chain links or
 //! their hash entries. The range encoder checks the chain links when it writes the range. An
@@ -120,6 +132,7 @@ use std::{fs, io, path::Path};
 use heed::{Env, EnvOpenOptions, RwTxn};
 use zakura_chain::block;
 
+use crate::trees::TreeExtension;
 use ztreamer_chain::codec::CompactBlockRecord;
 #[cfg(any(test, feature = "test-utils"))]
 use ztreamer_chain::codec::TreeSizes;
@@ -132,16 +145,19 @@ pub mod range_meta;
 mod snapshot;
 mod state;
 mod tables;
+mod tree_extend;
+mod tree_tables;
 mod writer;
 use crate::metrics::record_durable_height;
 pub use batch::{EncodedBatch, WriteBatch};
 pub use checked_range::{CheckedRange, RangeCheckError};
-pub use error::IndexError;
+pub use error::{IndexError, TreeError};
 use metadata::Metadata;
 use range_meta::RangeMeta;
 pub use snapshot::IndexSnapshot;
 pub use state::{BlockId, ChainIdentity, IndexState};
 use tables::{SealedRange, Tables, range_start};
+use tree_extend::TreeRead;
 use writer::IndexWriter;
 use ztreamer_chain::codec::RANGE_SIZE;
 
@@ -156,7 +172,7 @@ pub const SCHEMA_VERSION: u32 = 1;
 pub const PERSIST_DEPTH: u32 = 10;
 pub const SEAL_DEPTH: u32 = 100;
 
-/// Ztreamer's five-database LMDB index.
+/// Ztreamer's seven-database LMDB index.
 pub struct Index {
     env: Env,
     tables: Tables,
@@ -211,7 +227,7 @@ impl Index {
         let env = unsafe {
             EnvOpenOptions::new()
                 .map_size(map_size)
-                .max_dbs(5)
+                .max_dbs(Tables::COUNT)
                 .max_readers(MAX_READERS)
                 .open(path)?
         };
@@ -276,6 +292,36 @@ impl Index {
         self.tables.range_meta.put(&mut txn, start, meta)?;
         txn.commit()?;
         Ok(())
+    }
+
+    /// Extends the note commitment trees over the next blocks after them, and writes the new
+    /// tree rows in one commit. Takes about 50 ranges or 2 million commitments, the first limit
+    /// that the blocks reach, and hashes them on up to `threads` threads. Returns `None` if the
+    /// trees reach the durable tip. [`crate::trees`] gives the rows.
+    ///
+    /// The write does not advance the generation: a reader at the current generation keeps its
+    /// snapshot. If a reorg replaced the blocks after the read, the call fails with
+    /// [`TreeError::Moved`] and writes nothing. The next call starts again from the new tree
+    /// height.
+    ///
+    /// ```no_run
+    /// # use ztreamer_index::index::{Index, IndexError};
+    /// # fn demo(index: &Index) -> Result<(), IndexError> {
+    /// while let Some(extension) = index.extend_trees(8)? {
+    ///     println!("trees reach {}", extension.end_height);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn extend_trees(&self, threads: usize) -> Result<Option<TreeExtension>, IndexError> {
+        let Some(read) = TreeRead::read(&self.latest()?)? else {
+            return Ok(None);
+        };
+        let rows = read.decode(threads)?.hash(threads)?;
+        let mut txn = self.env.write_txn()?;
+        let extension = rows.write(&mut txn, self.tables)?;
+        txn.commit()?;
+        Ok(Some(extension))
     }
 
     /// Sets the tip of an empty index to `tip`, with `tree_sizes`, as if sealed ranges cover

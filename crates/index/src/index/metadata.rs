@@ -1,6 +1,7 @@
-//! The metadata table: the persisted [`IndexState`] and the chain identity.
+//! The metadata table: the persisted [`IndexState`], the chain identity, and the height of the
+//! note commitment trees.
 //!
-//! The table has two rows. All integers are big-endian.
+//! The table has up to three rows. All integers are big-endian.
 //!
 //! `"state"`, 62 or 67 bytes. Each commit writes it:
 //!
@@ -37,6 +38,10 @@
 //! [`Metadata::put_or_check_identity`] compares the stored identity with the identity of the
 //! current build and chain. If they are different, `Index::open` fails with
 //! [`IndexError::Identity`].
+//!
+//! `"trees"`, 4 bytes: the last height that the note commitment trees of the index reach, a `u32`.
+//! An index with no tree rows has no `"trees"` row. The row is not part of the state, so a tree
+//! write does not change the generation.
 
 use heed::{Database, RoTxn, RwTxn, types::Bytes};
 use zakura_chain::block;
@@ -49,6 +54,7 @@ use ztreamer_chain::codec::TreeSizes;
 
 const STATE: &[u8] = b"state";
 const IDENTITY: &[u8] = b"identity";
+const TREES: &[u8] = b"trees";
 /// The bytes of the identity before the genesis hash: the schema version and the fixed policy.
 const POLICY_BYTES: usize = 16;
 const STATE_V1: u8 = 1;
@@ -77,6 +83,27 @@ impl Metadata {
         state: IndexState,
     ) -> Result<(), IndexError> {
         Ok(self.0.put(txn, STATE, encode_state(state).as_slice())?)
+    }
+
+    /// The last height that the note commitment trees reach, or `None` if they reach no block.
+    pub(crate) fn get_trees_through(&self, txn: &RoTxn<'_>) -> Result<Option<u32>, IndexError> {
+        self.0
+            .get(txn, TREES)?
+            .map(|bytes| bytes.try_into().map(u32::from_be_bytes).map_err(|_| IndexError::Metadata))
+            .transpose()
+    }
+
+    /// Writes the last height that the note commitment trees reach. `None` deletes the row.
+    pub(crate) fn put_trees_through(
+        &self,
+        txn: &mut RwTxn<'_>,
+        through: Option<u32>,
+    ) -> Result<(), IndexError> {
+        match through {
+            Some(height) => self.0.put(txn, TREES, height.to_be_bytes().as_slice())?,
+            None => drop(self.0.delete(txn, TREES)?),
+        }
+        Ok(())
     }
 
     /// Stores the identity of a new index, and rejects an index made for another chain or with
