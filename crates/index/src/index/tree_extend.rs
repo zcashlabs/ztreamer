@@ -1,25 +1,25 @@
 //! The extension of the note commitment trees over the blocks after them. [`TreeRead`] reads
-//! the blocks and the start of the trees in one snapshot, [`TreeBatch`] takes their commitments,
-//! and [`TreeRows`] holds the rows that one write adds. Only the read and the write hold an LMDB
+//! the blocks and the end of the trees in one snapshot, a [`TreeRun`] hashes them, and
+//! [`TreeRows`] holds the rows that one write adds. Only the read and the write hold an LMDB
 //! transaction. The decode and the hashes run on scoped threads between them.
 
-use std::collections::BTreeMap;
+use std::ops::RangeInclusive;
 
 use heed::RwTxn;
 use sapling_crypto::Node as SaplingNode;
-use zakura_chain::{block, orchard};
+use zakura_chain::block;
 use ztreamer_chain::codec::{CompactBlockRecord, RangeDecoder, TreeSizes};
-use ztreamer_snapshot::pool::Pool;
+use ztreamer_snapshot::{
+    manifest_entry::Frontiers,
+    pool::{Pool, SubtreeRoot},
+};
 
 use super::{
     BlockId, IndexError, IndexSnapshot, RANGE_SIZE, TreeError,
     tables::{Tables, range_start},
-    tree_tables::pool_size,
+    tree_run::{OrchardNode, PoolHashed, TreeRun},
 };
-use crate::trees::{
-    DEPTH, LowFrontier, Lows, Nodes, PoolLeaves, STORED_FROM, TreeExtension, TreeNode, climb,
-    par_map,
-};
+use crate::trees::{TreeExtension, par_map};
 
 /// The most note commitments that one extension takes, unless one sealed range alone has more.
 /// About 64 MiB of commitments.
@@ -28,18 +28,11 @@ const MAX_COMMITMENTS: u64 = 1 << 21;
 /// The most blocks that one extension takes, rounded up to whole sealed ranges.
 const MAX_BLOCKS: u32 = 50 * RANGE_SIZE;
 
-type OrchardNode = orchard::tree::Node;
-
-/// The blocks after the trees and the start of the trees, as one snapshot gives them. The sealed
-/// ranges stay encoded, so that the decode runs with no transaction.
+/// The blocks after the trees of the index, and the run that starts where the trees end, as one
+/// snapshot gives them. The sealed ranges stay encoded, so that the decode runs with no
+/// transaction.
 pub(crate) struct TreeRead {
-    /// The last height that the trees reach in the snapshot.
-    base: Option<u32>,
-    /// The tree sizes at the end of `base`.
-    start_sizes: TreeSizes,
-    sapling: PoolStart<SaplingNode>,
-    orchard: PoolStart<OrchardNode>,
-    ironwood: PoolStart<OrchardNode>,
+    run: TreeRun,
     /// Whole sealed ranges, each with the index of its first record to take.
     sealed: Vec<(Vec<u8>, usize)>,
     /// The mutable blocks after the sealed ranges.
@@ -64,15 +57,8 @@ impl TreeRead {
             .map(|through| snapshot.block::<CompactBlockRecord>(through))
             .transpose()?
             .map_or_else(TreeSizes::default, |record| record.end_tree_sizes);
-        let mut read = Self {
-            base,
-            start_sizes,
-            sapling: PoolStart::read(snapshot, Pool::Sapling, base, start_sizes)?,
-            orchard: PoolStart::read(snapshot, Pool::Orchard, base, start_sizes)?,
-            ironwood: PoolStart::read(snapshot, Pool::Ironwood, base, start_sizes)?,
-            sealed: Vec::new(),
-            mutable: Vec::new(),
-        };
+        let run = TreeRun::from_index(snapshot, base, start_sizes)?;
+        let mut read = Self { run, sealed: Vec::new(), mutable: Vec::new() };
 
         let last = tip.height.min(first.saturating_add(MAX_BLOCKS - 1));
         let mut height = first;
@@ -97,198 +83,74 @@ impl TreeRead {
         Ok(Some(read))
     }
 
-    /// Decodes the sealed blocks on up to `threads` threads, and takes the commitments of each
-    /// block in height order.
-    pub(crate) fn decode(self, threads: usize) -> Result<TreeBatch, IndexError> {
-        let decoders = self
-            .sealed
-            .iter()
-            .map(|(blob, from)| Ok((RangeDecoder::new(blob)?, *from)))
-            .collect::<Result<Vec<_>, IndexError>>()?;
-        let offsets: Vec<usize> = decoders
-            .iter()
-            .scan(0, |next, (_, from)| {
-                let offset = *next;
-                *next += RANGE_SIZE as usize - from;
-                Some(offset)
-            })
-            .collect();
-        let records = offsets
-            .last()
-            .zip(decoders.last())
-            .map_or(0, |(offset, (_, from))| offset + RANGE_SIZE as usize - from);
-        let sealed = par_map(records, threads, |record| {
-            let piece = offsets.partition_point(|&offset| offset <= record) - 1;
-            let (decoder, from) = &decoders[piece];
-            decoder
-                .record(from + record - offsets[piece])
-                .map(|record| BlockCommitments::of(&record))
-        });
-
-        let mut batch = TreeBatch {
-            sizes: self.start_sizes,
-            end: None,
-            sapling: PoolLeaves::new(u64::from(self.start_sizes.sapling)),
-            orchard: PoolLeaves::new(u64::from(self.start_sizes.orchard)),
-            ironwood: PoolLeaves::new(u64::from(self.start_sizes.ironwood)),
-            read: self,
-        };
-        for block in sealed {
-            batch.push(block?)?;
+    /// Decodes the blocks, each sealed range on up to `threads` threads, and adds them to the
+    /// run in height order.
+    pub(crate) fn decode(self, threads: usize) -> Result<TreeRun, IndexError> {
+        let Self { mut run, sealed, mutable } = self;
+        for (blob, from) in &sealed {
+            let decoder = RangeDecoder::new(blob)?;
+            let records =
+                par_map(RANGE_SIZE as usize - from, threads, |at| decoder.record(from + at));
+            for record in records {
+                run.push(&record?)?;
+            }
         }
-        let mutable = std::mem::take(&mut batch.read.mutable);
-        mutable.iter().try_for_each(|record| batch.push(BlockCommitments::of(record)))?;
-        Ok(batch)
+        mutable.iter().try_for_each(|record| run.push(record))?;
+        Ok(run)
     }
 }
 
-/// Where the tree of one pool ends: the low frontier, if its chunk is not full, and the stored
-/// nodes that the new nodes have on their left.
-struct PoolStart<H> {
-    low: Option<LowFrontier<H>>,
-    /// By level and index.
-    left: BTreeMap<(u8, u64), H>,
+/// The rows that a [`TreeRun`] adds to the trees of each pool, and what they give: the frontiers
+/// at the end of each block of the run, and the subtrees that it completes.
+/// [`Index::write_tree_rows`](super::Index::write_tree_rows) writes them.
+pub struct TreeRows {
+    /// The last block before the run, where the trees of the index must end.
+    pub(crate) base: Option<u32>,
+    pub(crate) end: BlockId,
+    pub(crate) extension: TreeExtension,
+    pub(crate) sapling: PoolHashed<SaplingNode>,
+    pub(crate) orchard: PoolHashed<OrchardNode>,
+    pub(crate) ironwood: PoolHashed<OrchardNode>,
 }
 
-impl<H: TreeNode> PoolStart<H> {
-    /// Reads the start of the tree of `pool` at the end of `base`, whose tree sizes are `sizes`.
-    /// A new node at level `l` has a stored node on its left exactly when the size has a 1 bit
-    /// at `l`. Refuses a missing or wrong row.
-    fn read(
-        snapshot: &IndexSnapshot<'_>,
-        pool: Pool,
-        base: Option<u32>,
-        sizes: TreeSizes,
-    ) -> Result<Self, IndexError> {
-        let (Some(base), size) = (base, pool_size(sizes, pool)) else {
-            return Ok(Self { low: None, left: BTreeMap::new() });
-        };
-        let damaged = || TreeError::Row { pool: pool.as_str() };
-        let low = match size.checked_sub(1) {
-            Some(position) => Some(
-                snapshot
-                    .tree_low::<H>(pool, base)?
-                    .filter(|low| low.position() == position)
-                    .ok_or_else(damaged)?,
-            ),
-            None => None,
-        };
-        let left = (STORED_FROM..DEPTH)
-            .filter(|level| (size >> level) & 1 == 1)
-            .map(|level| {
-                let index = (size >> level) - 1;
-                let node = snapshot.tree_node::<H>(pool, level, index)?.ok_or_else(damaged)?;
-                Ok(((level, index), node))
-            })
-            .collect::<Result<_, IndexError>>()?;
-        Ok(Self { low: low.filter(|low| !low.ends_chunk()), left })
+impl std::fmt::Debug for TreeRows {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TreeRows").field("extension", &self.extension).finish_non_exhaustive()
     }
-}
-
-/// The commitments of one block, by pool.
-struct BlockCommitments {
-    id: BlockId,
-    end_tree_sizes: TreeSizes,
-    sapling: Vec<[u8; 32]>,
-    orchard: Vec<[u8; 32]>,
-    ironwood: Vec<[u8; 32]>,
-}
-
-impl BlockCommitments {
-    fn of(record: &CompactBlockRecord) -> Self {
-        let transactions = &record.transactions;
-        Self {
-            id: BlockId::new(record.height, record.hash),
-            end_tree_sizes: record.end_tree_sizes,
-            sapling: transactions
-                .iter()
-                .flat_map(|tx| &tx.sapling_outputs)
-                .map(|output| output.cmu)
-                .collect(),
-            orchard: transactions
-                .iter()
-                .flat_map(|tx| &tx.orchard_actions)
-                .map(|action| action.commitment)
-                .collect(),
-            ironwood: transactions
-                .iter()
-                .flat_map(|tx| &tx.ironwood_actions)
-                .map(|action| action.commitment)
-                .collect(),
-        }
-    }
-
-    /// The commitments of the block in each pool.
-    fn sizes(&self) -> Option<TreeSizes> {
-        Some(TreeSizes {
-            sapling: self.sapling.len().try_into().ok()?,
-            orchard: self.orchard.len().try_into().ok()?,
-            ironwood: self.ironwood.len().try_into().ok()?,
-        })
-    }
-}
-
-/// The commitments that a run of blocks adds to each pool, after the trees.
-pub(crate) struct TreeBatch {
-    read: TreeRead,
-    /// The tree sizes at the end of the blocks so far.
-    sizes: TreeSizes,
-    /// The last block so far.
-    end: Option<BlockId>,
-    sapling: PoolLeaves,
-    orchard: PoolLeaves,
-    ironwood: PoolLeaves,
-}
-
-impl TreeBatch {
-    /// Adds the next block. Refuses a block whose commitments do not add up to its tree sizes.
-    fn push(&mut self, block: BlockCommitments) -> Result<(), TreeError> {
-        let height = block.id.height;
-        let sizes = block.sizes().and_then(|added| self.sizes.checked_add(added));
-        if sizes != Some(block.end_tree_sizes) {
-            return Err(TreeError::Sizes { height });
-        }
-        self.sizes = block.end_tree_sizes;
-        self.end = Some(block.id);
-        self.sapling.push_block(height, block.sapling.into_iter());
-        self.orchard.push_block(height, block.orchard.into_iter());
-        self.ironwood.push_block(height, block.ironwood.into_iter());
-        Ok(())
-    }
-
-    /// Hashes the chunks of each pool on up to `threads` threads, then the complete nodes above
-    /// them.
-    pub(crate) fn hash(self, threads: usize) -> Result<TreeRows, TreeError> {
-        let Self { read, sizes, end, sapling, orchard, ironwood } = self;
-        let end = end.expect("a read takes at least one block");
-        Ok(TreeRows {
-            base: read.base,
-            end,
-            extension: TreeExtension {
-                start_height: read.base.map_or(0, |through| through + 1),
-                end_height: end.height,
-                commitments: sizes.checked_sub(read.start_sizes).map_or(0, TreeSizes::total),
-            },
-            sapling: extend_pool(Pool::Sapling, &sapling, read.sapling, threads)?,
-            orchard: extend_pool(Pool::Orchard, &orchard, read.orchard, threads)?,
-            ironwood: extend_pool(Pool::Ironwood, &ironwood, read.ironwood, threads)?,
-        })
-    }
-}
-
-/// The rows that one extension adds to each pool.
-pub(crate) struct TreeRows {
-    base: Option<u32>,
-    end: BlockId,
-    extension: TreeExtension,
-    sapling: PoolRows<SaplingNode>,
-    orchard: PoolRows<OrchardNode>,
-    ironwood: PoolRows<OrchardNode>,
 }
 
 impl TreeRows {
-    /// Writes the rows and moves the tree height to the last block of the extension. Fails with
-    /// [`TreeError::Moved`] and writes nothing if the trees or the blocks changed after the read.
+    /// The blocks that the rows cover.
+    pub const fn extension(&self) -> TreeExtension {
+        self.extension
+    }
+
+    /// The frontier of each pool at the end of the block at `height` of the run, in the RPC
+    /// encoding of `GetTreeState`: a pool with no commitments has the encoding of the empty tree.
+    /// Returns `None` for a pool that the run did not start from a frontier and that has no
+    /// commitments in the run through `height`.
+    pub fn frontiers(&self, height: u32) -> Option<Frontiers> {
+        Some(Frontiers {
+            sapling: self.sapling.rpc_bytes(height)?,
+            orchard: self.orchard.rpc_bytes(height)?,
+            ironwood: self.ironwood.rpc_bytes(height)?,
+        })
+    }
+
+    /// The subtrees that the blocks at `heights` complete, in the order of their blocks, and in
+    /// one block Sapling, then Orchard, then Ironwood.
+    pub fn subtree_roots(&self, heights: RangeInclusive<u32>) -> Vec<SubtreeRoot> {
+        let mut roots = self.sapling.subtrees(Pool::Sapling, &heights);
+        roots.extend(self.orchard.subtrees(Pool::Orchard, &heights));
+        roots.extend(self.ironwood.subtrees(Pool::Ironwood, &heights));
+        // A stable sort keeps the pool order within a block.
+        roots.sort_by_key(|(height, _)| *height);
+        roots.into_iter().map(|(_, root)| root).collect()
+    }
+
+    /// Writes the rows and moves the tree height to the last block of the run. Fails with
+    /// [`TreeError::Moved`] and writes nothing if the trees do not end at the start of the run,
+    /// or if the last block of the run is not in the index.
     pub(crate) fn write(
         self,
         txn: &mut RwTxn<'_>,
@@ -308,38 +170,6 @@ impl TreeRows {
     }
 }
 
-/// The rows that one extension adds to one pool.
-struct PoolRows<H> {
-    lows: Lows<H>,
-    /// The new complete nodes.
-    nodes: Nodes<H>,
-}
-
-impl<H: TreeNode> PoolRows<H> {
-    fn put(&self, txn: &mut RwTxn<'_>, tables: Tables, pool: Pool) -> Result<(), IndexError> {
-        self.lows
-            .iter()
-            .try_for_each(|(height, low)| tables.tree_lows.put(txn, pool, *height, low))?;
-        self.nodes.iter().try_for_each(|(level, index, node)| {
-            tables.tree_nodes.put(txn, pool, *level, *index, node)
-        })
-    }
-}
-
-/// Hashes the chunks of `leaves` from `start`, then the complete nodes above them.
-fn extend_pool<H: TreeNode>(
-    pool: Pool,
-    leaves: &PoolLeaves,
-    start: PoolStart<H>,
-    threads: usize,
-) -> Result<PoolRows<H>, TreeError> {
-    let rows = leaves
-        .hash(start.low, threads)
-        .map_err(|position| TreeError::Commitment { pool: pool.as_str(), position })?;
-    let nodes = climb(rows.roots, &start.left).ok_or(TreeError::Row { pool: pool.as_str() })?;
-    Ok(PoolRows { lows: rows.lows, nodes })
-}
-
 /// Returns `true` if the block at `height` has the hash `hash` in the index of `txn`.
 fn is_canonical(
     txn: &RwTxn<'_>,
@@ -353,14 +183,17 @@ fn is_canonical(
 #[cfg(test)]
 mod tests {
     use incrementalmerkletree::frontier::Frontier;
-    use ztreamer_chain::test_utils::{mixed_records, record};
+    use ztreamer_chain::{
+        test_utils::{mixed_records, record},
+        types::{CompactShieldedAction, CompactTransaction},
+    };
     use ztreamer_snapshot::manifest_entry::Frontiers;
 
     use super::*;
     use crate::{
         index::Index,
         test_utils::{open_index, populate},
-        trees::DEPTH,
+        trees::{DEPTH, TreeNode},
     };
 
     /// The frontiers at the end of each record, as the library builds them one leaf at a time.
@@ -368,15 +201,24 @@ mod tests {
         fn append<H: TreeNode>(frontier: &mut Frontier<H, DEPTH>, commitments: &[[u8; 32]]) {
             commitments.iter().for_each(|cm| assert!(frontier.append(H::leaf(cm).unwrap())));
         }
+        let commitments = |record: &CompactBlockRecord| {
+            let txs = &record.transactions;
+            let actions = |pool: fn(&CompactTransaction) -> &Vec<CompactShieldedAction>| {
+                txs.iter().flat_map(pool).map(|action| action.commitment).collect::<Vec<_>>()
+            };
+            let sapling = txs.iter().flat_map(|tx| &tx.sapling_outputs).map(|o| o.cmu).collect();
+            (sapling, actions(|tx| &tx.orchard_actions), actions(|tx| &tx.ironwood_actions))
+        };
         let mut sapling = Frontier::<SaplingNode, DEPTH>::empty();
         let (mut orchard, mut ironwood) = (Frontier::empty(), Frontier::empty());
         records
             .iter()
             .map(|record| {
-                let block = BlockCommitments::of(record);
-                append(&mut sapling, &block.sapling);
-                append::<OrchardNode>(&mut orchard, &block.orchard);
-                append::<OrchardNode>(&mut ironwood, &block.ironwood);
+                let (block_sapling, block_orchard, block_ironwood): (Vec<_>, Vec<_>, Vec<_>) =
+                    commitments(record);
+                append(&mut sapling, &block_sapling);
+                append::<OrchardNode>(&mut orchard, &block_orchard);
+                append::<OrchardNode>(&mut ironwood, &block_ironwood);
                 Frontiers {
                     sapling: SaplingNode::rpc_bytes(sapling.clone()),
                     orchard: OrchardNode::rpc_bytes(orchard.clone()),

@@ -8,17 +8,17 @@
 //! the roots of the subtrees that the epoch completed, with one call per pool.
 
 use bytes::Bytes;
-use pasta_curves::{group::ff::PrimeField, pallas};
+use incrementalmerkletree::{Hashable, frontier::Frontier};
 use zakura_chain::{ironwood, orchard, sapling, subtree::NoteCommitmentSubtreeIndex};
-use ztreamer_chain::{
-    codec::{CompactBlockRecord, TreeSizes},
-    types::CompactShieldedAction,
+use zcash_primitives::merkle_tree::HashSer;
+use ztreamer_chain::codec::TreeSizes;
+use ztreamer_index::index::{
+    CheckedRange, StartFrontiers, TreeError, TreeRows, TreeRun, range_meta::Attested,
 };
-use ztreamer_index::index::{CheckedRange, range_meta::Attested};
-use ztreamer_remote::frontier::{FromRpc, RpcDecodeError};
+use ztreamer_remote::frontier::{FromRpc, RpcDecodeError, read_frontier};
 use ztreamer_snapshot::{
     manifest_entry::Frontiers,
-    pool::{Pool, PoolRoots, SubtreeNode, SubtreeRoot},
+    pool::{Pool, PoolRoots, SubtreeRoot},
 };
 
 use crate::{
@@ -26,6 +26,9 @@ use crate::{
     range::{Check, RangeBlob, RangeLink, Reject},
 };
 use ztreamer_snapshot::epoch::Epoch;
+
+/// The depth of each note commitment tree.
+const MERKLE_DEPTH: u8 = 32;
 
 /// What an epoch proves when its ranges check out and its trees rebuild.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -58,56 +61,74 @@ impl EpochProof {
     /// for each pool, also for an empty tree. [`EpochProof::matches_roots`] compares these roots
     /// with the node roots.
     pub fn rebuild(epoch: &Epoch<'_>, blobs: &[Bytes], start: &Frontiers) -> Result<Self, Reject> {
-        Self::rebuild_ranges(epoch, blobs, start).map(|(proof, _)| proof)
+        Self::rebuild_ranges(epoch, blobs, start).map(|(proof, ..)| proof)
     }
 
-    /// [`EpochProof::rebuild`], and the [`CheckedRange`] of each blob, in order. The importer installs
-    /// them with [`Index::install_checked_range`]. Thus the install does not check the blobs
-    /// again.
+    /// [`EpochProof::rebuild`], the [`CheckedRange`] of each blob, in order, and the rows of the
+    /// trees of the epoch. The importer installs the ranges with
+    /// [`Index::install_checked_range`], so that the install does not check the blobs again, and
+    /// writes the rows with [`Index::write_tree_rows`], so that the trees of the index need no
+    /// hash of the epoch again.
     ///
     /// [`Index::install_checked_range`]: ztreamer_index::index::Index::install_checked_range
+    /// [`Index::write_tree_rows`]: ztreamer_index::index::Index::write_tree_rows
     pub(crate) fn rebuild_ranges(
         epoch: &Epoch<'_>,
         blobs: &[Bytes],
         start: &Frontiers,
-    ) -> Result<(Self, Vec<CheckedRange>), Reject> {
+    ) -> Result<(Self, Vec<CheckedRange>, TreeRows), Reject> {
         if blobs.len() != epoch.entries().len() {
             return Err(Reject::BlobCount { entries: epoch.entries().len(), blobs: blobs.len() });
         }
-        let mut link = epoch.previous().map_or(RangeLink::GENESIS, RangeLink::from);
+        let previous = epoch.previous();
+        let mut link = previous.map_or(RangeLink::GENESIS, RangeLink::from);
         let start_height = epoch.entries().first().map_or(0, |entry| entry.start_height);
-        let mut trees = Trees::try_from(start)
+        let base = previous.map(|entry| entry.end_height);
+        let mut run = start_frontiers(start)
             .ok()
-            .filter(|trees| trees.have_sizes(link.end_tree_sizes))
+            .and_then(|frontiers| TreeRun::from_frontiers(base, link.end_tree_sizes, frontiers))
             .ok_or(Check::StartFrontier.at(start_height))?;
 
-        let (mut end_frontiers, mut completed) = (start, Vec::new());
         let mut ranges = Vec::with_capacity(blobs.len());
         for (entry, blob) in epoch.entries().iter().zip(blobs) {
-            let first_completed = completed.len();
             let (end, range) = RangeBlob::new(blob, entry).check_with(&link, |record| {
-                trees.append(record, &mut completed).map_err(|check| check.at(record.height))
+                run.push(record).map_err(|_| Check::TreeSizes.at(record.height))
             })?;
             link = end;
-            if !entry.frontiers.follows(end_frontiers) || !trees.matches(&entry.frontiers) {
-                return Err(Check::Frontier.at(entry.end_height));
-            }
-            let range_completed = &completed[first_completed..];
-            if range_completed.len() != entry.subtree_roots.len()
-                || range_completed.iter().any(|root| !entry.subtree_roots.contains(root))
-            {
-                return Err(Check::SubtreeRoots.at(entry.end_height));
-            }
-            end_frontiers = &entry.frontiers;
             ranges.push(range);
         }
+        // An epoch holds a few ranges, and the importer verifies several epochs at a time.
+        let rows = run.hash(1).map_err(|error| match error {
+            TreeError::Commitment { height, .. } => Check::Commitment.at(height),
+            _ => Check::Frontier.at(epoch.end_height()),
+        })?;
+
+        let mut end_frontiers = start;
+        for entry in epoch.entries() {
+            let height = entry.end_height;
+            let rebuilt = rows.frontiers(height).ok_or(Check::Frontier.at(height))?;
+            if !entry.frontiers.follows(end_frontiers)
+                || !rebuilt_matches(&entry.frontiers, &rebuilt, entry.end_tree_sizes)
+            {
+                return Err(Check::Frontier.at(height));
+            }
+            let completed = rows.subtree_roots(entry.start_height..=height);
+            if completed.len() != entry.subtree_roots.len()
+                || completed.iter().any(|root| !entry.subtree_roots.contains(root))
+            {
+                return Err(Check::SubtreeRoots.at(height));
+            }
+            end_frontiers = &entry.frontiers;
+        }
+        let end = epoch.end_height();
+        let roots = Trees::try_from(end_frontiers).map_err(|_| Check::Frontier.at(end))?.roots();
         let proof = Self {
             end_frontiers: end_frontiers.clone(),
             end_tree_sizes: link.end_tree_sizes,
-            roots: trees.roots(),
-            completed,
+            roots,
+            completed: rows.subtree_roots(start_height..=end),
         };
-        Ok((proof, ranges))
+        Ok((proof, ranges, rows))
     }
 
     /// Returns `true` if each root in `node_roots` matches the rebuilt tree of its pool.
@@ -273,48 +294,6 @@ impl TryFrom<&Frontiers> for Trees {
 }
 
 impl Trees {
-    fn have_sizes(&self, sizes: TreeSizes) -> bool {
-        self.sapling.count() == u64::from(sizes.sapling)
-            && self.orchard.count() == u64::from(sizes.orchard)
-            && self.ironwood.count() == u64::from(sizes.ironwood)
-    }
-
-    /// Appends the commitments of one block, and pushes the subtrees that they complete.
-    fn append(
-        &mut self,
-        record: &CompactBlockRecord,
-        completed: &mut Vec<SubtreeRoot>,
-    ) -> Result<(), Check> {
-        let leaves = Leaves::try_from(record)?;
-        let subtree = |index, root| SubtreeRoot { index, root };
-        let sapling = self.sapling.append_batch(&leaves.sapling).map_err(|_| Check::Commitment)?;
-        let orchard = self.orchard.append_batch(&leaves.orchard).map_err(|_| Check::Commitment)?;
-        let ironwood =
-            self.ironwood.append_batch(&leaves.ironwood).map_err(|_| Check::Commitment)?;
-        completed.extend(
-            [
-                sapling.map(|(index, node)| subtree(index, SubtreeNode::Sapling(node))),
-                orchard.map(|(index, node)| subtree(index, SubtreeNode::Orchard(node))),
-                ironwood.map(|(index, node)| subtree(index, SubtreeNode::Ironwood(node))),
-            ]
-            .into_iter()
-            .flatten(),
-        );
-        Ok(())
-    }
-
-    /// Compares the trees with `frontiers`. An empty frontier, a pool that is not active, must
-    /// be an empty tree. Any other frontier must equal the RPC encoding of the tree byte for
-    /// byte.
-    fn matches(&self, frontiers: &Frontiers) -> bool {
-        let same = |frontier: &[u8], count: u64, encoded: Vec<u8>| {
-            if frontier.is_empty() { count == 0 } else { encoded == frontier }
-        };
-        same(&frontiers.sapling, self.sapling.count(), self.sapling.to_rpc_bytes())
-            && same(&frontiers.orchard, self.orchard.count(), self.orchard.to_rpc_bytes())
-            && same(&frontiers.ironwood, self.ironwood.count(), self.ironwood.to_rpc_bytes())
-    }
-
     /// The root of each tree. An empty tree has the root of the empty tree.
     pub(crate) fn roots(&self) -> PoolRoots {
         PoolRoots {
@@ -325,46 +304,31 @@ impl Trees {
     }
 }
 
-/// The tree leaves of one block, per pool: Sapling `cmu`s, Orchard and Ironwood `cmx`s.
-struct Leaves {
-    sapling: Vec<sapling::tree::NoteCommitmentUpdate>,
-    orchard: Vec<pallas::Base>,
-    ironwood: Vec<pallas::Base>,
+/// The frontier of each pool in `frontiers`. An empty frontier, a pool that is not active, is the
+/// empty tree.
+fn start_frontiers(frontiers: &Frontiers) -> Result<StartFrontiers, RpcDecodeError> {
+    fn parse<H: HashSer + Hashable + Clone>(
+        bytes: &[u8],
+    ) -> Result<Frontier<H, MERKLE_DEPTH>, RpcDecodeError> {
+        if bytes.is_empty() { Ok(Frontier::empty()) } else { read_frontier(bytes) }
+    }
+    Ok(StartFrontiers {
+        sapling: parse(&frontiers.sapling)?,
+        orchard: parse(&frontiers.orchard)?,
+        ironwood: parse(&frontiers.ironwood)?,
+    })
 }
 
-impl TryFrom<&CompactBlockRecord> for Leaves {
-    type Error = Check;
-
-    /// Reads the commitments of each pool. A commitment that is not a field element of its
-    /// pool is [`Check::Commitment`].
-    fn try_from(record: &CompactBlockRecord) -> Result<Self, Check> {
-        let transactions = &record.transactions;
-        let cmx = |action: &CompactShieldedAction| {
-            Option::from(pallas::Base::from_repr(action.commitment))
-        };
-        Ok(Self {
-            sapling: transactions
-                .iter()
-                .flat_map(|tx| &tx.sapling_outputs)
-                .map(|output| {
-                    Option::from(sapling::tree::NoteCommitmentUpdate::from_bytes(&output.cmu))
-                })
-                .collect::<Option<_>>()
-                .ok_or(Check::Commitment)?,
-            orchard: transactions
-                .iter()
-                .flat_map(|tx| &tx.orchard_actions)
-                .map(cmx)
-                .collect::<Option<_>>()
-                .ok_or(Check::Commitment)?,
-            ironwood: transactions
-                .iter()
-                .flat_map(|tx| &tx.ironwood_actions)
-                .map(cmx)
-                .collect::<Option<_>>()
-                .ok_or(Check::Commitment)?,
-        })
-    }
+/// Returns `true` if the rebuilt frontiers are the frontiers of a manifest entry, whose tree sizes
+/// are `sizes`. An empty frontier in the entry, a pool that is not active, must be an empty tree.
+/// Any other frontier must equal the rebuilt one byte for byte.
+fn rebuilt_matches(entry: &Frontiers, rebuilt: &Frontiers, sizes: TreeSizes) -> bool {
+    let same = |entry: &[u8], size: u32, rebuilt: &[u8]| {
+        if entry.is_empty() { size == 0 } else { entry == rebuilt }
+    };
+    same(&entry.sapling, sizes.sapling, &rebuilt.sapling)
+        && same(&entry.orchard, sizes.orchard, &rebuilt.orchard)
+        && same(&entry.ironwood, sizes.ironwood, &rebuilt.ironwood)
 }
 
 #[cfg(test)]

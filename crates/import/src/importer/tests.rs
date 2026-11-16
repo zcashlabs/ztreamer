@@ -193,6 +193,8 @@ impl Import {
             (state.sealed_through(), state.verified_through()),
             (Some(sealed), Some(sealed))
         );
+        // The import writes the tree rows of each epoch: the trees need no hash after it.
+        assert_eq!(self.target.latest().unwrap().trees_through().unwrap(), Some(sealed));
     }
 }
 

@@ -29,6 +29,16 @@ impl PoolLeaves {
         self.start + self.commitments.len() as u64
     }
 
+    /// The height of the block that adds the commitment at `position`, which the run holds.
+    pub(crate) fn height_of(&self, position: u64) -> u32 {
+        self.ends[self.ends.partition_point(|&(_, size)| size <= position)].0
+    }
+
+    /// The height and the tree size at the end of each block of the run that adds commitments.
+    pub(crate) fn into_ends(self) -> Vec<(u32, u64)> {
+        self.ends
+    }
+
     /// Adds the commitments of the block at `height`.
     pub(crate) fn push_block(&mut self, height: u32, commitments: impl Iterator<Item = [u8; 32]>) {
         let before = self.commitments.len();

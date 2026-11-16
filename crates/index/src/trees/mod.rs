@@ -9,7 +9,7 @@ mod low;
 mod node;
 mod parallel;
 
-pub(crate) use extend::{Lows, Nodes, PoolLeaves, climb};
+pub(crate) use extend::{PoolLeaves, climb};
 pub(crate) use low::LowFrontier;
 pub(crate) use node::TreeNode;
 pub(crate) use parallel::par_map;

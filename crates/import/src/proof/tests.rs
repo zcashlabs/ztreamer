@@ -1,11 +1,12 @@
-use incrementalmerkletree::{Position, frontier::Frontier};
-use zakura_chain::{subtree::NoteCommitmentSubtreeIndex, transaction};
+use incrementalmerkletree::Position;
+use pasta_curves::{group::ff::PrimeField, pallas};
+use zakura_chain::transaction;
 use ztreamer_chain::{
-    codec::{RANGE_SIZE, encode_range},
+    codec::{CompactBlockRecord, RANGE_SIZE, encode_range},
     test_utils::{hash, record},
-    types::{CompactSaplingOutput, CompactTransaction},
+    types::{CompactSaplingOutput, CompactShieldedAction, CompactTransaction},
 };
-use ztreamer_snapshot::manifest_entry::ManifestEntry;
+use ztreamer_snapshot::{manifest_entry::ManifestEntry, pool::SubtreeNode};
 
 use super::*;
 use ztreamer_snapshot::{epoch::Epochs, test_utils::entries_from_genesis};

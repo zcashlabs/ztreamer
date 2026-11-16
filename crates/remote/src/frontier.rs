@@ -101,7 +101,12 @@ fn root_bytes(bytes: &[u8]) -> Result<[u8; 32], RpcDecodeError> {
 }
 
 /// Reads the `zcashd` commitment tree encoding into a frontier. Returns an error if bytes remain.
-fn read_frontier<H, const DEPTH: u8>(mut bytes: &[u8]) -> Result<Frontier<H, DEPTH>, RpcDecodeError>
+///
+/// This function does not verify the frontier. Before you use it, compare its root with a root
+/// from a trusted source.
+pub fn read_frontier<H, const DEPTH: u8>(
+    mut bytes: &[u8],
+) -> Result<Frontier<H, DEPTH>, RpcDecodeError>
 where
     H: HashSer + Hashable + Clone,
 {
