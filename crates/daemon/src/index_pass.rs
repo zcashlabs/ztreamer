@@ -30,7 +30,7 @@ impl<S: FinalizedBlockSource + Send + 'static> IndexPass<S> {
     /// error with `--index-only` because the index was the whole job.
     pub(crate) async fn run(self, stage: &StageContext<'_>) -> Result<ControlFlow<(), IndexState>> {
         let Self { kind, source } = self;
-        let SyncConfig { pipeline, index_only } = stage.sync;
+        let SyncConfig { pipeline, index_only, .. } = stage.sync;
         let sync_index = Arc::clone(stage.index);
         kind.log_start();
         let started = Instant::now();

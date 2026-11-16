@@ -30,7 +30,7 @@ pub(crate) fn remote_config(dir: &Path, url: &str, replicate_from: &str) -> Daem
             .unwrap();
     DaemonConfig {
         index: IndexConfig { dir: dir.to_owned(), map_size: NonZeroUsize::new(64 << 20).unwrap() },
-        sync: SyncConfig { pipeline: PipelineConfig::default(), index_only: false },
+        sync: SyncConfig { pipeline: PipelineConfig::default(), index_only: false, trees: true },
         servers: ServerConfig {
             grpc_listen: "127.0.0.1:9067".parse().unwrap(),
             tls: None,

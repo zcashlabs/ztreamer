@@ -147,6 +147,12 @@ struct DaemonArgs {
     #[arg(long)]
     index_only: bool,
 
+    /// Do not build the note commitment trees of the index. GetTreeState then asks the node for
+    /// each block above the trees that the index has. Saves about 320 MB of index on mainnet and
+    /// about 37 core-minutes of hashing at the lowest priority, once per index.
+    #[arg(long)]
+    no_tree_index: bool,
+
     /// JSON-RPC URL of a remote zakura node. ztreamerd starts no embedded node. It imports the
     /// sealed ranges of --replicate-from, and this node attests them. Then ztreamerd reads the
     /// tail and the head from this node. The node gives the network (mainnet or testnet), and
@@ -188,8 +194,11 @@ impl TryFrom<DaemonArgs> for DaemonConfig {
     /// Refuses a `--remote-rpc-cookie` together with credentials in the `--remote-rpc` URL.
     fn try_from(args: DaemonArgs) -> Result<Self> {
         let index = args.index();
-        let sync =
-            SyncConfig { pipeline: PipelineConfig::from(&args), index_only: args.index_only };
+        let sync = SyncConfig {
+            pipeline: PipelineConfig::from(&args),
+            index_only: args.index_only,
+            trees: !args.no_tree_index,
+        };
         let tls = match (args.tls_cert, args.tls_key) {
             (Some(cert), Some(key)) => Some(TlsFiles { cert, key }),
             (None, None) => None,
