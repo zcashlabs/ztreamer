@@ -11,7 +11,7 @@ use zakura_chain::{block, parameters::GENESIS_PREVIOUS_BLOCK_HASH};
 use zakura_test::vectors::BLOCK_MAINNET_1687121_BYTES;
 use ztreamer_chain::{
     parser::parse_block,
-    test_utils::hash,
+    test_utils::{hash, record},
     types::{CompactTransaction, ParsedCompactBlock, RawIndexBlock},
 };
 use ztreamer_index::{
@@ -20,6 +20,7 @@ use ztreamer_index::{
 };
 use ztreamer_protocol::proto;
 use ztreamer_service::CompactService;
+use ztreamer_snapshot::pool::Pool;
 use ztreamer_sync::head::HeadFollower;
 
 const TIP: u32 = 2_005;
@@ -156,6 +157,64 @@ fn mixed_ranges(c: &mut Criterion) {
     group.finish();
 }
 
+/// GetSubtreeRoots over heavy blocks, with about as many subtrees as mainnet has: 1,129 Sapling
+/// and 770 Orchard, completed at heights spread over the index. `warm` repeats one request at one
+/// serving snapshot. `new-head` publishes another volatile head before each request, as a new
+/// block does.
+fn get_subtree_roots(c: &mut Criterion) {
+    let runtime =
+        tokio::runtime::Builder::new_multi_thread().worker_threads(4).enable_all().build().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let index = Arc::new(
+        Index::open(dir.path(), 512 * 1024 * 1024, "Mainnet", block::Hash([9; 32])).unwrap(),
+    );
+    let state = index_through(&index, TIP);
+    let follower = HeadFollower::new(Arc::clone(&index), state);
+    let node = support::NodeSubtrees::default();
+    for (pool, count) in [(Pool::Sapling, 1_129), (Pool::Orchard, 770)] {
+        (0..count).for_each(|subtree| node.complete(pool, subtree * TIP / count));
+    }
+    let service = CompactService::with_backend(index, follower.subscribe(), "main", node);
+    let heads = [record(TIP + 1, Vec::new()), {
+        let mut other = record(TIP + 1, Vec::new());
+        other.hash.0[31] = 1;
+        other
+    }];
+
+    let mut group = c.benchmark_group("get_subtree_roots");
+    for (name, protocol, max_entries, count) in [
+        ("sapling-all", proto::ShieldedProtocol::Sapling, 0, 1_129),
+        ("orchard-all", proto::ShieldedProtocol::Orchard, 0, 770),
+        ("sapling-first-10", proto::ShieldedProtocol::Sapling, 10, 10),
+    ] {
+        let request = proto::GetSubtreeRootsArg {
+            start_index: 0,
+            shielded_protocol: protocol as i32,
+            max_entries,
+        };
+        let run = || async {
+            let mut stream = service.subtree_roots(request).await.unwrap();
+            let mut roots = 0;
+            while let Some(root) = stream.next().await {
+                black_box(root.unwrap());
+                roots += 1;
+            }
+            assert_eq!(roots, count);
+        };
+        group.throughput(Throughput::Elements(count));
+        group.bench_function(BenchmarkId::new("warm", name), |b| b.to_async(&runtime).iter(run));
+        let mut head = 0;
+        group.bench_function(BenchmarkId::new("new-head", name), |b| {
+            b.to_async(&runtime).iter(|| {
+                head = 1 - head;
+                follower.publish_head(state, vec![heads[head].clone()]).unwrap();
+                run()
+            })
+        });
+    }
+    group.finish();
+}
+
 fn criterion_config() -> Criterion {
     Criterion::default().noise_threshold(0.05).sample_size(50)
 }
@@ -163,6 +222,6 @@ fn criterion_config() -> Criterion {
 criterion_group! {
     name = benches;
     config = criterion_config();
-    targets = get_block_range, mixed_ranges
+    targets = get_block_range, mixed_ranges, get_subtree_roots
 }
 criterion_main!(benches);

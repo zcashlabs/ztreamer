@@ -3,6 +3,10 @@
 //!
 //! Compiled for this crate's own tests and for targets that enable the `test-utils` feature.
 
+mod subtrees;
+
+pub use subtrees::NodeSubtrees;
+
 use crate::{CompactService, NodeVersion};
 use prost::Message as _;
 use sapling_crypto::Node as SaplingNode;
