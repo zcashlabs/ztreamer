@@ -133,4 +133,9 @@ message CompactOrchardAction {
     bytes cmx = 2;              // [32] The x-coordinate of the note commitment for the output note
     bytes ephemeralKey = 3;     // [32] An encoding of an ephemeral Pallas public key
     bytes ciphertext = 4;       // [52] The first 52 bytes of the encCiphertext field
+    // ztreamer extension, not in upstream lightwallet-protocol.
+    // [32] or empty: the compressed Pallas point [2^64] * ephemeralKey. With it, a wallet's
+    // trial decryption can split the IVK into four 64-bit GLV scalars. Empty when the server
+    // does not compute it, or when ephemeralKey is not a valid non-identity point.
+    bytes ephemeralKeyShifted = 5;
 }

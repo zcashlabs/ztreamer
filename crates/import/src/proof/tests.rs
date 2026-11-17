@@ -36,6 +36,7 @@ fn shielded(height: u32, sapling: &[u64], orchard: &[u64], ironwood: &[u64]) -> 
         nullifier: [0; 32],
         commitment: pallas::Base::from(n).to_repr(),
         ephemeral_key: [0; 32],
+        ephemeral_key_shifted: None,
         ciphertext: [0; 52],
     };
     CompactTransaction {

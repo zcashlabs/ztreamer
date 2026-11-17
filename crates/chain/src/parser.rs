@@ -4,6 +4,7 @@ use zakura_chain::{block, transaction};
 
 use crate::{
     Digest,
+    epk_shift::shifted_ephemeral_key,
     types::{
         CompactSaplingOutput, CompactShieldedAction, CompactTransaction, ParsedCompactBlock,
         RawIndexBlock,
@@ -490,6 +491,7 @@ impl<'a> Reader<'a> {
             actions.push(CompactShieldedAction {
                 nullifier,
                 commitment,
+                ephemeral_key_shifted: shifted_ephemeral_key(&ephemeral_key),
                 ephemeral_key,
                 ciphertext,
             });
@@ -630,10 +632,12 @@ mod tests {
             .collect();
         let action = |action: &zakura_chain::orchard::Action| {
             let encrypted: [u8; 580] = action.enc_ciphertext.into();
+            let ephemeral_key = (&action.ephemeral_key).into();
             CompactShieldedAction {
                 nullifier: action.nullifier.into(),
                 commitment: action.cm_x.into(),
-                ephemeral_key: (&action.ephemeral_key).into(),
+                ephemeral_key_shifted: shifted_ephemeral_key(&ephemeral_key),
+                ephemeral_key,
                 ciphertext: encrypted[..COMPACT_CIPHERTEXT_BYTES].try_into().unwrap(),
             }
         };

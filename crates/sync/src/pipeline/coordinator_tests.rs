@@ -114,6 +114,7 @@ fn prepared(height: u32) -> ParsedCompactBlock {
         nullifier: hash(height).0,
         commitment: [3; 32],
         ephemeral_key: [4; 32],
+        ephemeral_key_shifted: None,
         ciphertext: [5; 52],
     };
     let transactions = if count == 0 {

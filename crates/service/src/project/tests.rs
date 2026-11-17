@@ -8,6 +8,7 @@ use zakura_chain::{
 use zakura_test::vectors::{BLOCK_MAINNET_949496_BYTES, BLOCK_TESTNET_1842421_BYTES};
 use ztreamer_chain::{
     codec::{CompactBlockRecord, TreeSizes},
+    epk_shift,
     parser::parse_block,
     test_utils::mixed_records,
     types::{CompactSaplingOutput, CompactShieldedAction, CompactTransaction, RawIndexBlock},
@@ -33,6 +34,7 @@ fn validates_pools_and_projects_full_and_nullifier_blocks() {
     assert_eq!(nullifiers.vtx[0].spends[0].nf, vec![7; 32]);
     assert!(nullifiers.vtx[0].outputs.is_empty());
     assert!(nullifiers.vtx[0].actions[0].cmx.is_empty());
+    assert!(nullifiers.vtx[0].actions[0].ephemeral_key_shifted.is_empty());
     assert!(nullifiers.vtx[0].ironwood_actions[0].ciphertext.is_empty());
     assert_eq!(nullifiers.chain_metadata.unwrap(), proto::ChainMetadata::default());
 
@@ -371,6 +373,8 @@ fn action(byte: u8) -> CompactShieldedAction {
         nullifier: [byte; 32],
         commitment: [byte; 32],
         ephemeral_key: [byte; 32],
+        // Only builds with the feature store the key, and size their bounds for it.
+        ephemeral_key_shifted: epk_shift::ENABLED.then_some([byte ^ 0x55; 32]),
         ciphertext: [byte; 52],
     }
 }

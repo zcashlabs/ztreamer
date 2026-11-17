@@ -429,7 +429,7 @@ fn install_refuses_a_meta_that_does_not_describe_the_blob() {
     let index = open_index(dir.path());
     let (blob, meta) = snapshot_range(0, VerifyState::Verified);
     let changes: [fn(&mut RangeMeta); 6] = [
-        |meta| meta.entry.range_version = 2,
+        |meta| meta.entry.range_version = ztreamer_chain::codec::RANGE_FORMAT_VERSION + 1,
         |meta| meta.entry.start_height = 1_000,
         |meta| meta.entry.end_height = 1_000,
         |meta| meta.entry.end_hash = hash(1_000),

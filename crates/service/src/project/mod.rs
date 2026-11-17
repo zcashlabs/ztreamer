@@ -172,6 +172,7 @@ pub(crate) fn project_block(
             for action in tx.actions.iter_mut().chain(&mut tx.ironwood_actions) {
                 action.cmx.clear();
                 action.ephemeral_key.clear();
+                action.ephemeral_key_shifted.clear();
                 action.ciphertext.clear();
             }
         }
@@ -358,6 +359,7 @@ fn convert_actions(actions: &[CompactShieldedAction]) -> Vec<proto::CompactOrcha
             cmx: action.commitment.to_vec(),
             ephemeral_key: action.ephemeral_key.to_vec(),
             ciphertext: action.ciphertext.to_vec(),
+            ephemeral_key_shifted: action.ephemeral_key_shifted.map(Vec::from).unwrap_or_default(),
         })
         .collect()
 }

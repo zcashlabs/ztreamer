@@ -171,7 +171,9 @@ use ztreamer_chain::codec::RANGE_SIZE;
 /// threads used all of them: `MDB_READERS_FULL`. A slot is 64 bytes of the lock file.
 const MAX_READERS: u32 = 1_024;
 
-pub const SCHEMA_VERSION: u32 = 1;
+/// The index schema. An index of records with shifted ephemeral keys (the `epk-shift` feature)
+/// is schema 2, so a build of the other format refuses to open it.
+pub const SCHEMA_VERSION: u32 = if ztreamer_chain::epk_shift::ENABLED { 2 } else { 1 };
 pub const PERSIST_DEPTH: u32 = 10;
 pub const SEAL_DEPTH: u32 = 100;
 

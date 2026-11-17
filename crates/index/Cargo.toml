@@ -8,6 +8,8 @@ repository.workspace = true
 workspace = true
 
 [features]
+# Records with shifted ephemeral keys; see `ztreamer-chain/epk-shift`.
+epk-shift = ["ztreamer-chain/epk-shift"]
 # Shared test and benchmark fixtures in `ztreamer_index::test_utils`.
 test-utils = ["ztreamer-chain/test-utils"]
 

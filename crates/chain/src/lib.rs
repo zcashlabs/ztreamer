@@ -9,6 +9,7 @@
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 
 pub mod codec;
+pub mod epk_shift;
 pub mod parser;
 mod protobuf;
 #[cfg(any(test, feature = "test-utils"))]

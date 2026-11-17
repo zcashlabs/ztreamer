@@ -19,6 +19,8 @@ cargo install --locked --git https://github.com/zcashlabs/ztreamer ztreamerd
 
 Add `--features otlp` for the trace export over OTLP/gRPC (`--otlp-endpoint`). The default build has no trace export.
 
+Add `--features epk-shift` to store and serve `[2^64] * epk` for each Orchard and Ironwood action (field 5 of `CompactOrchardAction`). A wallet can use it to do trial decryption with 64 doublings instead of 128. The feature changes the index format. A build with it cannot open, replicate or restore an index of a build without it, so build the index again when you change it.
+
 ### Docker
 
 The image runs ztreamerd as a user without privileges. It has no shell. The volume `/var/lib/ztreamer` holds the index. In the embedded mode, it also holds the zakura state.
@@ -36,7 +38,7 @@ docker run -d --name ztreamer -v ztreamer:/var/lib/ztreamer -p 9067:9067 ztreame
   --remote-rpc https://user:password@host:8232
 ```
 
-To give the embedded node a zakura configuration, mount the file and add `--zakura-config FILE`. The build runs on all x86-64 and aarch64 CPUs. The build arguments are `PROFILE` (default `maxperf`) and `RUSTFLAGS`. To make a build for the CPU type of the build host only, add `--build-arg RUSTFLAGS="-C target-cpu=native"`.
+To give the embedded node a zakura configuration, mount the file and add `--zakura-config FILE`. The build runs on all x86-64 and aarch64 CPUs. The build arguments are `PROFILE` (default `maxperf`), `RUSTFLAGS` and `FEATURES` (Cargo features, for example `epk-shift`). To make a build for the CPU type of the build host only, add `--build-arg RUSTFLAGS="-C target-cpu=native"`.
 
 ## Modes
 
