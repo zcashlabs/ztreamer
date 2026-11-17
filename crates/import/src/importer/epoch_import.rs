@@ -11,7 +11,7 @@ use tokio::sync::Semaphore;
 use tracing::{Span, field::Empty};
 use ztreamer_blocking::BlockingTask;
 use ztreamer_index::index::{
-    CheckedRange, IndexState,
+    CheckedRange, IndexError, IndexState, TreeError, TreeRows,
     range_meta::{RangeMeta, VerifyState},
 };
 use ztreamer_snapshot::manifest_entry::{Frontiers, ManifestEntry};
@@ -23,8 +23,12 @@ use ztreamer_snapshot::{
     manifest::Manifest,
 };
 
-/// The checked ranges of an epoch and their `range_meta` rows, in height order.
-pub(crate) type VerifiedRows = Vec<(CheckedRange, RangeMeta)>;
+/// A verified epoch: its checked ranges and their `range_meta` rows, in height order, and the
+/// rows of its note commitment trees.
+pub(crate) struct VerifiedEpoch {
+    rows: Vec<(CheckedRange, RangeMeta)>,
+    trees: TreeRows,
+}
 
 /// The import of the epochs of one manifest: the importer, the manifest, and the first epoch to
 /// import. If the index is sealed inside the first epoch, the import has only the part of that
@@ -108,14 +112,15 @@ impl EpochImport {
     }
 
     /// Fetches, verifies, attests and samples the epoch at `at`, and gives its
-    /// [`VerifyState::Verified`] rows.
+    /// [`VerifyState::Verified`] rows and its tree rows.
     pub(crate) async fn fetch_and_verify(
         self: Arc<Self>,
         at: usize,
-    ) -> Result<VerifiedRows, ImportError> {
+    ) -> Result<VerifiedEpoch, ImportError> {
         let blobs = self.importer.fetcher.epoch_blobs(&self.manifest_epoch(at)).await?;
-        let (ranges, proof) = self.verify_on_blocking_pool(at, blobs).await?;
-        self.attest_and_sample(at, ranges, proof).await
+        let (ranges, proof, trees) = self.verify_on_blocking_pool(at, blobs).await?;
+        let rows = self.attest_and_sample(at, ranges, proof).await?;
+        Ok(VerifiedEpoch { rows, trees })
     }
 
     /// Runs [`EpochProof::rebuild`] for the epoch at `at` on the blocking thread pool, with one of
@@ -124,7 +129,7 @@ impl EpochImport {
         self: &Arc<Self>,
         at: usize,
         blobs: Vec<Bytes>,
-    ) -> Result<(Vec<CheckedRange>, EpochProof), ImportError> {
+    ) -> Result<(Vec<CheckedRange>, EpochProof, TreeRows), ImportError> {
         let _permit =
             self.verify_permits.acquire().await.expect("the verify permits are never closed");
         let run = Arc::clone(self);
@@ -134,24 +139,24 @@ impl EpochImport {
             .await
     }
 
-    /// Runs [`EpochProof::rebuild`] for the epoch at `at`, and gives the checked range of each blob.
-    /// Call it on the blocking thread pool.
+    /// Runs [`EpochProof::rebuild`] for the epoch at `at`, and gives the checked range of each blob
+    /// and the tree rows of the epoch. Call it on the blocking thread pool.
     fn verify_blobs(
         &self,
         at: usize,
         blobs: Vec<Bytes>,
-    ) -> Result<(Vec<CheckedRange>, EpochProof), ImportError> {
+    ) -> Result<(Vec<CheckedRange>, EpochProof, TreeRows), ImportError> {
         let epoch = self.manifest_epoch(at);
         // `EpochProof::rebuild` of the epoch before rebuilt the frontiers of the entry before. For
         // the first epoch, only the manifest gives them: the node attests them through the end
         // roots.
         let empty = Frontiers::default();
         let start = epoch.previous().map_or(&empty, |previous| &previous.frontiers);
-        let (proof, ranges) =
+        let (proof, ranges, trees) =
             EpochProof::rebuild_ranges(&epoch, &blobs, start).map_err(|reject| {
                 ImportError::Epoch { epoch: epoch.end_height(), source: reject.into() }
             })?;
-        Ok((ranges, proof))
+        Ok((ranges, proof, trees))
     }
 
     /// Runs [`EpochProof::attest`] and [`SamplePlan::sample`] for the epoch at `at` at the same time,
@@ -161,7 +166,7 @@ impl EpochImport {
         at: usize,
         ranges: Vec<CheckedRange>,
         proof: EpochProof,
-    ) -> Result<VerifiedRows, ImportError> {
+    ) -> Result<Vec<(CheckedRange, RangeMeta)>, ImportError> {
         let epoch = self.manifest_epoch(at);
         let node = &self.importer.node;
         let attest = proof.attest(&epoch, &*node.attestor);
@@ -198,16 +203,27 @@ impl EpochImport {
         Ok(rows.collect())
     }
 
-    /// Installs each checked range of an epoch with its row. The install does only the checks
-    /// that need the index: [`EpochProof::rebuild`] checked the blobs. Returns the index state after
-    /// the last range.
-    pub(crate) async fn install_rows(&self, rows: VerifiedRows) -> Result<IndexState, ImportError> {
+    /// Installs each checked range of an epoch with its row, then the tree rows of the epoch.
+    /// The install does only the checks that need the index: [`EpochProof::rebuild`] checked the
+    /// blobs. Returns the index state after the last range.
+    ///
+    /// The tree rows go in only where the trees of the index end at the start of the epoch. Else,
+    /// as after an import from before the trees, the tree builder of the daemon hashes the epoch.
+    pub(crate) async fn install_rows(
+        &self,
+        epoch: VerifiedEpoch,
+    ) -> Result<IndexState, ImportError> {
+        let VerifiedEpoch { rows, trees } = epoch;
         let state = self
             .importer
             .blocking(move |index| {
-                rows.iter().try_fold(None, |_, (range, meta)| {
+                let state = rows.iter().try_fold(None, |_, (range, meta)| {
                     index.install_checked_range(range, meta).map(Some)
-                })
+                })?;
+                match index.write_tree_rows(trees) {
+                    Ok(_) | Err(IndexError::Tree(TreeError::Moved)) => Ok(state),
+                    Err(error) => Err(error),
+                }
             })
             .await?;
         Ok(state.expect("an epoch is never empty"))

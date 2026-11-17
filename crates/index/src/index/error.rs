@@ -72,12 +72,12 @@ pub enum IndexError {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum TreeError {
     /// A compact block holds a note commitment that is not a leaf of its pool.
-    #[error("{pool} note commitment at tree position {position} is not a leaf of the pool")]
+    #[error("block {height} holds a {pool} note commitment that is not a leaf of the pool")]
     Commitment {
         /// The name of the pool.
         pool: &'static str,
-        /// The position of the commitment in the tree of the pool.
-        position: u64,
+        /// The height of the block.
+        height: u32,
     },
     /// A tree row that the trees need is missing or does not decode.
     #[error("{pool} note commitment tree row is missing or damaged")]

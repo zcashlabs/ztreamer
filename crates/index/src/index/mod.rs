@@ -146,6 +146,7 @@ mod snapshot;
 mod state;
 mod tables;
 mod tree_extend;
+mod tree_run;
 mod tree_tables;
 mod writer;
 use crate::metrics::record_durable_height;
@@ -158,6 +159,8 @@ pub use snapshot::IndexSnapshot;
 pub use state::{BlockId, ChainIdentity, IndexState};
 use tables::{SealedRange, Tables, range_start};
 use tree_extend::TreeRead;
+pub use tree_extend::TreeRows;
+pub use tree_run::{StartFrontiers, TreeRun};
 use writer::IndexWriter;
 use ztreamer_chain::codec::RANGE_SIZE;
 
@@ -318,10 +321,20 @@ impl Index {
             return Ok(None);
         };
         let rows = read.decode(threads)?.hash(threads)?;
+        self.write_tree_rows(rows).map(Some)
+    }
+
+    /// Writes the rows of a [`TreeRun`] in one commit that does not change the generation, and
+    /// moves the tree height to the last block of the run. A snapshot import builds the rows of
+    /// the ranges that it installs, so that the trees need no hash after the import.
+    ///
+    /// Fails with [`TreeError::Moved`] and writes nothing if the trees of the index do not end
+    /// at the block before the run, or if the last block of the run is not in the index.
+    pub fn write_tree_rows(&self, rows: TreeRows) -> Result<TreeExtension, IndexError> {
         let mut txn = self.env.write_txn()?;
         let extension = rows.write(&mut txn, self.tables)?;
         txn.commit()?;
-        Ok(Some(extension))
+        Ok(extension)
     }
 
     /// Sets the tip of an empty index to `tip`, with `tree_sizes`, as if sealed ranges cover

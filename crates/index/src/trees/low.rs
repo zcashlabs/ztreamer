@@ -35,6 +35,13 @@ impl<H: TreeNode> LowFrontier<H> {
         Self { position, leaf, ommers: Vec::new() }
     }
 
+    /// The low frontier of the last leaf `leaf` at `position`, with its `ommers` below
+    /// [`STORED_FROM`], lowest first.
+    pub(crate) fn from_parts(position: u64, leaf: H, ommers: Vec<H>) -> Self {
+        debug_assert_eq!(ommers.len(), (position & CHUNK_MASK).count_ones() as usize);
+        Self { position, leaf, ommers }
+    }
+
     /// The position of the last leaf.
     pub(crate) const fn position(&self) -> u64 {
         self.position

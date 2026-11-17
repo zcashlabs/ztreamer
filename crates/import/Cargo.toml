@@ -34,7 +34,7 @@ http-body-util = "0.1"
 metrics = "0.24"
 hyper = { version = "1", features = ["client", "http1"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "http1", "tokio"] }
-pasta_curves.workspace = true
+incrementalmerkletree.workspace = true
 rand = { version = "0.10", default-features = false, features = ["std", "std_rng"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 tempfile = { version = "3", optional = true }
@@ -46,6 +46,7 @@ tracing = "0.1"
 zakura-chain.workspace = true
 zakura-rpc.workspace = true
 zakura-state.workspace = true
+zcash_primitives.workspace = true
 ztreamer-blocking = { path = "../blocking", version = "0.1.0" }
 ztreamer-chain = { path = "../chain", version = "0.1.0" }
 ztreamer-embedded = { path = "../embedded", version = "0.1.0", optional = true }
@@ -61,7 +62,7 @@ chrono = { version = "0.4", default-features = false, features = ["std"] }
 criterion = "0.8"
 hex = "0.4"
 hyper = { version = "1", features = ["server"] }
-incrementalmerkletree.workspace = true
+pasta_curves.workspace = true
 sapling-crypto.workspace = true
 serde_json = "1"
 tempfile = "3"

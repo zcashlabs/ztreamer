@@ -4745,6 +4745,7 @@ dependencies = [
  "tracing",
  "zakura-chain",
  "zakura-pasta-curves",
+ "zakura-primitives",
  "zakura-rpc",
  "zakura-sapling-crypto",
  "zakura-state",

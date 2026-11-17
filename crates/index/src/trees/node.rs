@@ -3,6 +3,7 @@
 use incrementalmerkletree::{Hashable, frontier::Frontier};
 use sapling_crypto::Node as SaplingNode;
 use zakura_chain::{orchard, sapling};
+use ztreamer_snapshot::pool::{Pool, SubtreeNode};
 
 use super::DEPTH;
 
@@ -31,6 +32,9 @@ pub(crate) trait TreeNode: Hashable + Clone + Send + Sync {
 
     /// The `zcashd` RPC encoding of the tree that `frontier` gives.
     fn rpc_bytes(frontier: Frontier<Self, DEPTH>) -> Vec<u8>;
+
+    /// `node` as the root of a subtree of `pool`.
+    fn subtree(pool: Pool, node: Self) -> SubtreeNode;
 }
 
 impl TreeNode for SaplingNode {
@@ -50,6 +54,10 @@ impl TreeNode for SaplingNode {
     fn rpc_bytes(frontier: Frontier<Self, DEPTH>) -> Vec<u8> {
         sapling::tree::NoteCommitmentTree::from_frontier(frontier).to_rpc_bytes()
     }
+
+    fn subtree(_: Pool, node: Self) -> SubtreeNode {
+        SubtreeNode::Sapling(node)
+    }
 }
 
 impl TreeNode for orchard::tree::Node {
@@ -67,5 +75,12 @@ impl TreeNode for orchard::tree::Node {
 
     fn rpc_bytes(frontier: Frontier<Self, DEPTH>) -> Vec<u8> {
         orchard::tree::NoteCommitmentTree::from_frontier(frontier).to_rpc_bytes()
+    }
+
+    fn subtree(pool: Pool, node: Self) -> SubtreeNode {
+        match pool {
+            Pool::Ironwood => SubtreeNode::Ironwood(node),
+            _ => SubtreeNode::Orchard(node),
+        }
     }
 }
