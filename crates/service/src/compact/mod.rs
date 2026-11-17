@@ -27,7 +27,7 @@ mod tree;
 
 pub use range_limit::{DEFAULT_MAX_CONCURRENT_RANGES, RANGE_ADMISSION_TIMEOUT};
 
-use self::range_limit::RangeLimit;
+use self::{range_limit::RangeLimit, tree::SubtreeRootCache};
 
 /// The node version that `GetLightdInfo` reports.
 ///
@@ -49,6 +49,7 @@ pub struct CompactService {
     backend: Arc<dyn StateBackend>,
     node_version: Arc<NodeVersion>,
     range_streams: RangeLimit,
+    subtree_roots: Arc<SubtreeRootCache>,
     ping_enabled: bool,
 }
 
@@ -78,6 +79,7 @@ impl CompactService {
             backend: Arc::new(backend),
             node_version: Arc::default(),
             range_streams: RangeLimit::default(),
+            subtree_roots: Arc::default(),
             ping_enabled: false,
         }
     }
