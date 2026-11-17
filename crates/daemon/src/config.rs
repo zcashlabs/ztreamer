@@ -87,6 +87,10 @@ pub struct SyncConfig {
     /// Stop after the pass of the catch-up stage, with no head reconcile, no servers and no head
     /// follower.
     pub index_only: bool,
+    /// Build the note commitment trees of the index, so that `GetTreeState` reads the index. When
+    /// it is off, the trees stay where they are, and `GetTreeState` asks the node for each block
+    /// above them.
+    pub trees: bool,
 }
 
 /// The gRPC server and the metrics endpoint.

@@ -11,7 +11,7 @@
 //!    reflection on one listener.
 //!
 //! From the boot to shutdown, the tree builder keeps the note commitment trees of the index at
-//! its durable tip.
+//! its durable tip, unless [`SyncConfig::trees`](crate::SyncConfig::trees) is off.
 
 use std::{ops::ControlFlow, sync::Arc};
 
@@ -88,8 +88,10 @@ impl Launcher {
         };
         // The trees follow the blocks from now on: the historical pass, the catch-up and the
         // head.
-        let trees = TreeTask { index: Arc::clone(&index) };
-        tasks.spawn("tree builder", TASK_STOPPED, trees.run(shutdown.clone()));
+        if self.config.sync.trees {
+            let trees = TreeTask { index: Arc::clone(&index) };
+            tasks.spawn("tree builder", TASK_STOPPED, trees.run(shutdown.clone()));
+        }
         let stage = StageContext {
             index: &index,
             network: &network,
