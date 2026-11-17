@@ -246,7 +246,7 @@ mod tests {
 
         // Another range format version.
         let mut version = blob.to_vec();
-        version[0] = 2;
+        version[0] = ztreamer_chain::codec::RANGE_FORMAT_VERSION + 1;
         assert!(matches!(
             check(&records, version.into()),
             Err(RangeCheckError::Envelope(CodecError::Version { .. }))

@@ -6,16 +6,24 @@ use prost::{Message, bytes::Bytes};
 use zakura_chain::block;
 use ztreamer_protocol::{EncodedCompactBlock, compact_bytes, proto};
 
-use crate::types::CompactTransaction;
+use crate::{epk_shift, types::CompactTransaction};
 
 /// The number of blocks in a sealed range.
 pub const RANGE_SIZE: u32 = 1_000;
 
-pub(crate) const BLOCK_FORMAT_VERSION: u8 = 1;
-/// The format version of the packed range blobs that the index writes.
-pub const RANGE_FORMAT_VERSION: u8 = 1;
+/// The format version of one block record. Records with shifted ephemeral keys (the `epk-shift`
+/// feature) are version 2.
+pub(crate) const BLOCK_FORMAT_VERSION: u8 = if epk_shift::ENABLED { 2 } else { 1 };
+/// The format version of the packed range blobs that the index writes. Ranges of records with
+/// shifted ephemeral keys are version 2, so replicas and snapshots of the other format are
+/// refused.
+pub const RANGE_FORMAT_VERSION: u8 = if epk_shift::ENABLED { 2 } else { 1 };
 /// The largest encoded compact block record.
 pub const MAX_RECORD_BYTES: usize = 2_000_000;
+
+/// A conservative protobuf size of one Orchard or Ironwood action: 160 bytes, plus 34 for the
+/// tag, the length and the 32 bytes of a shifted ephemeral key.
+const ACTION_SIZE_BOUND: u128 = if epk_shift::ENABLED { 194 } else { 160 };
 
 const PROTOBUF_ENVELOPE_BYTES: usize = 1 + 2 * size_of::<u32>() + 2 * size_of::<block::Hash>();
 
@@ -268,8 +276,8 @@ impl CompactBlockRecord {
                 .map(|tx| {
                     64 + 36 * tx.sapling_spends.len() as u128
                         + 128 * tx.sapling_outputs.len() as u128
-                        + 160 * tx.orchard_actions.len() as u128
-                        + 160 * tx.ironwood_actions.len() as u128
+                        + ACTION_SIZE_BOUND * tx.orchard_actions.len() as u128
+                        + ACTION_SIZE_BOUND * tx.ironwood_actions.len() as u128
                 })
                 .sum::<u128>();
         usize::try_from(size)

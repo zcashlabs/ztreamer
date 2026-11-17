@@ -107,6 +107,7 @@ fn action(action: &CompactShieldedAction) -> proto::CompactOrchardAction {
         cmx: action.commitment.to_vec(),
         ephemeral_key: action.ephemeral_key.to_vec(),
         ciphertext: action.ciphertext.to_vec(),
+        ephemeral_key_shifted: action.ephemeral_key_shifted.map(Vec::from).unwrap_or_default(),
     }
 }
 
@@ -117,8 +118,16 @@ fn decode_action(
         nullifier: array(action.nullifier)?,
         commitment: array(action.cmx)?,
         ephemeral_key: array(action.ephemeral_key)?,
+        ephemeral_key_shifted: optional_array(action.ephemeral_key_shifted)?,
         ciphertext: array(action.ciphertext)?,
     })
+}
+
+/// Empty bytes are `None`. A record from a build without `epk-shift` has no shifted keys, and a
+/// record from a build with it has them, so the format version keeps the two apart.
+fn optional_array<const N: usize>(bytes: impl AsRef<[u8]>) -> Result<Option<[u8; N]>, CodecError> {
+    let bytes = bytes.as_ref();
+    (!bytes.is_empty()).then(|| array(bytes)).transpose()
 }
 
 fn array<const N: usize>(bytes: impl AsRef<[u8]>) -> Result<[u8; N], CodecError> {

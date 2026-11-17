@@ -9,10 +9,14 @@ description = "The compact block model of ztreamer: types, parser and byte codec
 workspace = true
 
 [features]
+# Stores and serves `[2^64] * epk` for each Orchard and Ironwood action. It changes the record
+# format, so an index built with it is incompatible with one built without it.
+epk-shift = ["dep:pasta_curves"]
 # Shared test and benchmark fixtures in `ztreamer_chain::test_utils`.
 test-utils = ["dep:serde_json", "dep:tracing", "dep:tracing-subscriber", "dep:zakura-test"]
 
 [dependencies]
+pasta_curves = { workspace = true, optional = true }
 prost = "0.14.4"
 serde_json = { version = "1", optional = true }
 thiserror = "2"
@@ -24,6 +28,7 @@ ztreamer-protocol = { path = "../protocol", version = "0.1.0" }
 
 [dev-dependencies]
 criterion = "0.8"
+pasta_curves.workspace = true
 zakura-test.workspace = true
 # Enables `test_utils` for this crate's benches.
 ztreamer-chain = { path = ".", features = ["test-utils"] }

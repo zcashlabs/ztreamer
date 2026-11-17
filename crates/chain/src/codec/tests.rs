@@ -1,6 +1,7 @@
 use super::*;
 use zakura_chain::transaction;
 
+use crate::epk_shift;
 use crate::test_utils::hash;
 use crate::types::{CompactSaplingOutput, CompactShieldedAction};
 
@@ -187,6 +188,44 @@ fn block_and_range_round_trip() {
 }
 
 #[test]
+fn shifted_keys_round_trip_and_other_lengths_are_refused() {
+    let record = CompactBlockRecord {
+        height: 4,
+        hash: block::Hash([1; 32]),
+        previous_hash: block::Hash([0; 32]),
+        time: 10,
+        transactions: vec![CompactTransaction {
+            index: 0,
+            txid: transaction::Hash([3; 32]),
+            sapling_spends: Vec::new(),
+            sapling_outputs: Vec::new(),
+            orchard_actions: vec![CompactShieldedAction {
+                ephemeral_key_shifted: Some([2; 32]),
+                ..action(8)
+            }],
+            ironwood_actions: vec![CompactShieldedAction {
+                ephemeral_key_shifted: None,
+                ..action(9)
+            }],
+        }],
+        end_tree_sizes: TreeSizes { sapling: 0, orchard: 1, ironwood: 1 },
+    };
+    let encoded = record.encode().unwrap();
+    assert_eq!(encoded[0], if epk_shift::ENABLED { 2 } else { 1 });
+    assert_eq!(CompactBlockRecord::decode(&encoded).unwrap(), record);
+
+    for len in [1, 31, 33] {
+        let mut block = record.to_proto();
+        block.vtx[0].actions[0].ephemeral_key_shifted = vec![2; len];
+        let payload = block.encode_to_vec();
+        let mut bytes = encoded[..PROTOBUF_ENVELOPE_BYTES - size_of::<u32>()].to_vec();
+        bytes.extend_from_slice(&(payload.len() as u32).to_be_bytes());
+        bytes.extend_from_slice(&payload);
+        assert_eq!(CompactBlockRecord::decode(&bytes), Err(CodecError::InvalidRecord), "{len}");
+    }
+}
+
+#[test]
 fn tree_sizes_total_sums_the_pools_without_overflow() {
     let sizes = TreeSizes { sapling: u32::MAX, orchard: u32::MAX, ironwood: 1 };
 
@@ -199,6 +238,8 @@ fn action(byte: u8) -> CompactShieldedAction {
         nullifier: [byte; 32],
         commitment: [byte; 32],
         ephemeral_key: [byte; 32],
+        // Only builds with the feature store the key, and size their bounds for it.
+        ephemeral_key_shifted: epk_shift::ENABLED.then_some([byte ^ 0x55; 32]),
         ciphertext: [byte; 52],
     }
 }

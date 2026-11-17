@@ -11,6 +11,12 @@ normalized for the repository hygiene gate:
   - `walletrpc/service.proto`
 - Verified on: 2026-11-13
 
+Local deviation: `CompactOrchardAction` has one ztreamer field,
+`ephemeralKeyShifted = 5`. Only builds with the `epk-shift` feature fill it, and other
+builds leave it empty, so their encoded bytes match upstream. The diff below reports this
+field. Remove the field from the diff output before you compare the remainder with
+upstream.
+
 Use the adjacent `COMMIT` file as the machine-readable source of this pin when
 deciding whether a future upstream protocol change is an intentional Zinder
 compatibility update or unreviewed drift.

@@ -239,7 +239,10 @@ impl fmt::Debug for RangeBlob<'_> {
 #[cfg(test)]
 mod tests {
     use ztreamer_chain::{
-        codec::{RANGE_ENVELOPE_BYTES, RANGE_SIZE, encode_range, encode_range_from_bytes},
+        codec::{
+            RANGE_ENVELOPE_BYTES, RANGE_FORMAT_VERSION, RANGE_SIZE, encode_range,
+            encode_range_from_bytes,
+        },
         test_utils::{encode_with_unshielded_transaction, hash, mixed_records},
     };
 
@@ -388,7 +391,12 @@ mod tests {
     fn a_wrong_entry_field_is_rejected() {
         type ChangeEntry = fn(&mut ManifestEntry);
         let cases: [(&str, ChangeEntry, Check, u32); 3] = [
-            ("a wrong range version", |entry| entry.range_version = 2, Check::RangeVersion, 1_000),
+            (
+                "a wrong range version",
+                |entry| entry.range_version = RANGE_FORMAT_VERSION + 1,
+                Check::RangeVersion,
+                1_000,
+            ),
             ("a wrong end hash", |entry| entry.end_hash = hash(7), Check::EndHash, 1_999),
             (
                 "wrong end tree sizes",

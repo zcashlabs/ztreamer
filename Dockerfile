@@ -19,13 +19,15 @@ COPY . .
 
 ARG PROFILE=maxperf
 ARG RUSTFLAGS=""
+# Cargo features of ztreamerd, separated by commas, for example `epk-shift`.
+ARG FEATURES=""
 ENV RUSTFLAGS=${RUSTFLAGS}
 # The cache mounts keep the dependencies and the build outputs between builds. The binary goes
 # outside the cache. The runtime stage copies it from there.
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,target=/src/target,sharing=locked \
-    cargo build --locked --profile "${PROFILE}" --package ztreamerd \
+    cargo build --locked --profile "${PROFILE}" --package ztreamerd --features "${FEATURES}" \
     && install -D "target/${PROFILE}/ztreamerd" /out/usr/local/bin/ztreamerd \
     && install -d /out/var/lib/ztreamer
 

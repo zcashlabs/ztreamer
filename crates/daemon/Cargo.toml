@@ -9,6 +9,9 @@ description = "The ztreamer daemon: the node modes, the indexing, the head follo
 workspace = true
 
 [features]
+# Stores and serves `[2^64] * epk` for each Orchard and Ironwood action, for faster wallet trial
+# decryption. It changes the index format: an index built with it must be built again without it.
+epk-shift = ["ztreamer-index/epk-shift"]
 # The trace export over OTLP/gRPC. Off by default: it adds about 13 packages to the build.
 otlp = ["dep:opentelemetry", "dep:opentelemetry-otlp", "dep:opentelemetry_sdk", "dep:tracing-opentelemetry"]
 

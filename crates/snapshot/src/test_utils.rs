@@ -27,7 +27,7 @@ pub fn entries_from_genesis(adds: &[TreeSizes]) -> Vec<ManifestEntry> {
             let start_height = index * RANGE_SIZE;
             let end_height = start_height + RANGE_SIZE - 1;
             ManifestEntry {
-                range_version: 1,
+                range_version: ztreamer_chain::codec::RANGE_FORMAT_VERSION,
                 start_height,
                 end_height,
                 end_hash: hash(end_height),
@@ -56,7 +56,7 @@ pub fn entries_from_genesis(adds: &[TreeSizes]) -> Vec<ManifestEntry> {
 /// Orchard.
 pub fn entry_with_frontiers(start: u32) -> ManifestEntry {
     ManifestEntry {
-        range_version: 1,
+        range_version: ztreamer_chain::codec::RANGE_FORMAT_VERSION,
         start_height: start,
         end_height: start + 999,
         end_hash: hash(start + 999),

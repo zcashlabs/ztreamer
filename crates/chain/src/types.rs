@@ -113,6 +113,11 @@ pub struct CompactShieldedAction {
     pub nullifier: Digest,
     pub commitment: Digest,
     pub ephemeral_key: EphemeralKey,
+    /// `[2^64] * ephemeral_key`, from [`shifted_ephemeral_key`]. Always `None` in builds
+    /// without the `epk-shift` feature.
+    ///
+    /// [`shifted_ephemeral_key`]: crate::epk_shift::shifted_ephemeral_key
+    pub ephemeral_key_shifted: Option<EphemeralKey>,
     pub ciphertext: Ciphertext,
 }
 

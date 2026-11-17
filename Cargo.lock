@@ -4638,6 +4638,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "zakura-chain",
+ "zakura-pasta-curves",
  "zakura-test",
  "ztreamer-chain",
  "ztreamer-protocol",
