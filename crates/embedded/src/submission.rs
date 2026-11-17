@@ -10,7 +10,7 @@ use crate::NodeError;
 /// Maps the result of [`NodeClient::submit_transaction`](crate::NodeClient::submit_transaction)
 /// to the answer that a wallet would get from Zakura's `sendrawtransaction` RPC.
 ///
-/// This mirrors `send_raw_transaction` in `zakura-rpc` 15.0.0 (`src/methods.rs`): a refusal of
+/// This mirrors `send_raw_transaction` in `zakura-rpc` 18.1.0 (`src/methods.rs`): a refusal of
 /// the mempool queue and a dropped verification are [`LegacyCode::Misc`], a failed verification
 /// is [`LegacyCode::Verify`], and the message is the error of the mempool. A mempool service that
 /// fails the request, or that answers what it should not, is a node failure, not a refusal.
