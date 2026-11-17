@@ -1,5 +1,7 @@
 //! Versioned codecs for individual compact blocks and random-access 1,000-block ranges.
 
+mod header;
+
 use std::fmt;
 
 use prost::{Message, bytes::Bytes};
@@ -7,6 +9,8 @@ use zakura_chain::block;
 use ztreamer_protocol::{EncodedCompactBlock, compact_bytes, proto};
 
 use crate::{epk_shift, types::CompactTransaction};
+
+pub use self::header::RecordHeader;
 
 /// The number of blocks in a sealed range.
 pub const RANGE_SIZE: u32 = 1_000;

@@ -122,9 +122,11 @@ fn block_and_range_round_trip() {
         EncodedBlockRecord::decode(&encoded_first).unwrap().block.encode_to_vec(),
         first.to_proto().encode_to_vec()
     );
+    assert_eq!(RecordHeader::decode(&encoded_first).unwrap(), RecordHeader::from_record(&first));
     for len in 0..encoded_first.len() {
         assert!(CompactBlockRecord::decode(&encoded_first[..len]).is_err());
         assert!(EncodedBlockRecord::decode(&encoded_first[..len]).is_err());
+        assert!(RecordHeader::decode(&encoded_first[..len]).is_err());
     }
     let mut mismatched = encoded_first.clone();
     mismatched[1] ^= 1;
@@ -155,6 +157,8 @@ fn block_and_range_round_trip() {
     let encoded = encode_range(&records).unwrap();
     let range = RangeDecoder::new(&encoded).unwrap();
     for (index, expected) in records.iter().enumerate() {
+        let header = range.record_as::<RecordHeader>(index).unwrap();
+        assert_eq!(header, RecordHeader::from_record(expected));
         let encoded = range.record_as::<EncodedBlockRecord>(index).unwrap();
         assert_eq!(encoded.height, expected.height);
         assert_eq!(encoded.hash, expected.hash);
