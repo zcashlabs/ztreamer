@@ -4620,7 +4620,7 @@ checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
 
 [[package]]
 name = "ztreamer-backend"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "thiserror",
  "tonic",
@@ -4632,7 +4632,7 @@ dependencies = [
 
 [[package]]
 name = "ztreamer-blocking"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "thiserror",
  "tokio",
@@ -4642,7 +4642,7 @@ dependencies = [
 
 [[package]]
 name = "ztreamer-chain"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "criterion",
  "prost",
@@ -4659,7 +4659,7 @@ dependencies = [
 
 [[package]]
 name = "ztreamer-daemon"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "ed25519-zebra",
@@ -4707,7 +4707,7 @@ dependencies = [
 
 [[package]]
 name = "ztreamer-embedded"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "tempfile",
  "thiserror",
@@ -4733,7 +4733,7 @@ dependencies = [
 
 [[package]]
 name = "ztreamer-import"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -4777,7 +4777,7 @@ dependencies = [
 
 [[package]]
 name = "ztreamer-index"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "criterion",
  "heed",
@@ -4799,7 +4799,7 @@ dependencies = [
 
 [[package]]
 name = "ztreamer-jsonrpc"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.23.1",
  "bytes",
@@ -4821,7 +4821,7 @@ dependencies = [
 
 [[package]]
 name = "ztreamer-p2p"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "prost",
  "tokio",
@@ -4838,7 +4838,7 @@ dependencies = [
 
 [[package]]
 name = "ztreamer-protocol"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "prost",
  "tonic",
@@ -4848,7 +4848,7 @@ dependencies = [
 
 [[package]]
 name = "ztreamer-remote"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.23.1",
  "bytes",
@@ -4887,7 +4887,7 @@ dependencies = [
 
 [[package]]
 name = "ztreamer-replicator"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "ed25519-zebra",
@@ -4914,7 +4914,7 @@ dependencies = [
 
 [[package]]
 name = "ztreamer-service"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "criterion",
@@ -4943,7 +4943,7 @@ dependencies = [
 
 [[package]]
 name = "ztreamer-snapshot"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "blake3",
  "chrono",
@@ -4961,7 +4961,7 @@ dependencies = [
 
 [[package]]
 name = "ztreamer-sync"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "heed",
  "metrics",
@@ -4979,7 +4979,7 @@ dependencies = [
 
 [[package]]
 name = "ztreamerd"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "clap",

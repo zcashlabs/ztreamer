@@ -1,6 +1,6 @@
 [package]
 name = "ztreamer-p2p"
-version = "0.1.0"
+version = "0.2.0"
 edition.workspace = true
 repository.workspace = true
 description = "The CompactTxStreamer service over the Zakura p2p network"
@@ -15,8 +15,8 @@ tokio-stream = "0.1"
 tonic = "0.14.6"
 tracing = "0.1"
 zakura-network.workspace = true
-ztreamer-protocol = { path = "../protocol", version = "0.1.0" }
-ztreamer-service = { path = "../service", version = "0.1.0" }
+ztreamer-protocol = { path = "../protocol", version = "0.2.0" }
+ztreamer-service = { path = "../service", version = "0.2.0" }
 
 [dev-dependencies]
 zakura-chain.workspace = true

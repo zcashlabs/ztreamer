@@ -1,6 +1,6 @@
 [package]
 name = "ztreamer-index"
-version = "0.1.0"
+version = "0.2.0"
 edition.workspace = true
 repository.workspace = true
 
@@ -22,8 +22,8 @@ sapling-crypto.workspace = true
 thiserror = "2"
 tonic = "0.14.6"
 zakura-chain.workspace = true
-ztreamer-chain = { path = "../chain", version = "0.1.0" }
-ztreamer-snapshot = { path = "../snapshot", version = "0.1.0" }
+ztreamer-chain = { path = "../chain", version = "0.2.0" }
+ztreamer-snapshot = { path = "../snapshot", version = "0.2.0" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2"

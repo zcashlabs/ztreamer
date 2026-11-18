@@ -1,6 +1,6 @@
 [package]
 name = "ztreamer-jsonrpc"
-version = "0.1.0"
+version = "0.2.0"
 edition.workspace = true
 repository.workspace = true
 description = "JSON-RPC 2.0 client over HTTP and HTTPS"

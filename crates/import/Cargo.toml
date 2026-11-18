@@ -1,6 +1,6 @@
 [package]
 name = "ztreamer-import"
-version = "0.1.0"
+version = "0.2.0"
 edition.workspace = true
 repository.workspace = true
 description = "The replica side of replication: fetch, verify and install sealed ranges"
@@ -47,15 +47,15 @@ zakura-chain.workspace = true
 zakura-rpc.workspace = true
 zakura-state.workspace = true
 zcash_primitives.workspace = true
-ztreamer-blocking = { path = "../blocking", version = "0.1.0" }
-ztreamer-chain = { path = "../chain", version = "0.1.0" }
-ztreamer-embedded = { path = "../embedded", version = "0.1.0", optional = true }
-ztreamer-index = { path = "../index", version = "0.1.0" }
-ztreamer-protocol = { path = "../protocol", version = "0.1.0" }
-ztreamer-remote = { path = "../remote", version = "0.1.0" }
-ztreamer-replicator = { path = "../replicator", version = "0.1.0", optional = true }
-ztreamer-snapshot = { path = "../snapshot", version = "0.1.0" }
-ztreamer-sync = { path = "../sync", version = "0.1.0", optional = true }
+ztreamer-blocking = { path = "../blocking", version = "0.2.0" }
+ztreamer-chain = { path = "../chain", version = "0.2.0" }
+ztreamer-embedded = { path = "../embedded", version = "0.2.0", optional = true }
+ztreamer-index = { path = "../index", version = "0.2.0" }
+ztreamer-protocol = { path = "../protocol", version = "0.2.0" }
+ztreamer-remote = { path = "../remote", version = "0.2.0" }
+ztreamer-replicator = { path = "../replicator", version = "0.2.0", optional = true }
+ztreamer-snapshot = { path = "../snapshot", version = "0.2.0" }
+ztreamer-sync = { path = "../sync", version = "0.2.0", optional = true }
 
 [dev-dependencies]
 chrono = { version = "0.4", default-features = false, features = ["std"] }
