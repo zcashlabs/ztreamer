@@ -1,6 +1,6 @@
 [package]
 name = "ztreamer-daemon"
-version = "0.1.0"
+version = "0.2.0"
 edition.workspace = true
 repository.workspace = true
 description = "The ztreamer daemon: the node modes, the indexing, the head follower and the servers"
@@ -38,17 +38,17 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 zakura-chain.workspace = true
 zakura-rpc.workspace = true
 zakurad = { workspace = true, features = ["indexer"] }
-ztreamer-backend = { path = "../backend", version = "0.1.0" }
-ztreamer-embedded = { path = "../embedded", version = "0.1.0" }
-ztreamer-import = { path = "../import", version = "0.1.0" }
-ztreamer-index = { path = "../index", version = "0.1.0" }
-ztreamer-p2p = { path = "../p2p", version = "0.1.0" }
-ztreamer-protocol = { path = "../protocol", version = "0.1.0" }
-ztreamer-remote = { path = "../remote", version = "0.1.0" }
-ztreamer-replicator = { path = "../replicator", version = "0.1.0" }
-ztreamer-service = { path = "../service", version = "0.1.0" }
-ztreamer-snapshot = { path = "../snapshot", version = "0.1.0" }
-ztreamer-sync = { path = "../sync", version = "0.1.0" }
+ztreamer-backend = { path = "../backend", version = "0.2.0" }
+ztreamer-embedded = { path = "../embedded", version = "0.2.0" }
+ztreamer-import = { path = "../import", version = "0.2.0" }
+ztreamer-index = { path = "../index", version = "0.2.0" }
+ztreamer-p2p = { path = "../p2p", version = "0.2.0" }
+ztreamer-protocol = { path = "../protocol", version = "0.2.0" }
+ztreamer-remote = { path = "../remote", version = "0.2.0" }
+ztreamer-replicator = { path = "../replicator", version = "0.2.0" }
+ztreamer-service = { path = "../service", version = "0.2.0" }
+ztreamer-snapshot = { path = "../snapshot", version = "0.2.0" }
+ztreamer-sync = { path = "../sync", version = "0.2.0" }
 
 [dev-dependencies]
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }

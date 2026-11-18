@@ -18,7 +18,7 @@
       packages = eachSystem (pkgs: {
         default = pkgs.rustPlatform.buildRustPackage {
           pname = "ztreamerd";
-          version = "0.1.0";
+          version = "0.2.0";
           src = pkgs.lib.cleanSource ./.;
           cargoLock.lockFile = ./Cargo.lock;
           nativeBuildInputs = with pkgs; [
