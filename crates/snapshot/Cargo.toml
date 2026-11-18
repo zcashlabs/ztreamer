@@ -3,6 +3,7 @@ name = "ztreamer-snapshot"
 version = "0.2.0"
 edition.workspace = true
 repository.workspace = true
+license.workspace = true
 description = "The snapshot format: manifest entries, the epoch rule, the manifest and the directory layout"
 
 [lints]

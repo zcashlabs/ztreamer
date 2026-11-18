@@ -3,6 +3,7 @@ name = "ztreamer-replicator"
 version = "0.2.0"
 edition.workspace = true
 repository.workspace = true
+license.workspace = true
 description = "The source side of replication: range_meta rows, the Replicator service and snapshot export"
 
 [lints]
