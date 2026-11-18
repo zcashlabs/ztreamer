@@ -85,7 +85,7 @@ impl SourceIndex {
     /// each sealed range from [`RangeMetaFiller`].
     pub async fn with_range_meta(records: &[CompactBlockRecord], sealed_through: u32) -> Self {
         let source = Self::sealed(records, sealed_through);
-        let (_state, read, _tip, _change) = zakura_state::init(
+        let zakura_state::InitializedState { read_state: read, .. } = zakura_state::init(
             zakura_state::Config::ephemeral(),
             &Network::Mainnet,
             block::Height::MAX,

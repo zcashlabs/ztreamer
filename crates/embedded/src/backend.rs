@@ -269,7 +269,7 @@ mod tests {
 
     #[tokio::test]
     async fn read_only_backend_has_no_mempool() {
-        let (_state, read, _tip, _change) = zakura_state::init(
+        let zakura_state::InitializedState { read_state: read, .. } = zakura_state::init(
             zakura_state::Config::ephemeral(),
             &Network::Mainnet,
             block::Height::MAX,

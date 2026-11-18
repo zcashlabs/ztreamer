@@ -56,7 +56,7 @@ async fn streamed_balance_deduplicates_and_limits_addresses() {
         let dir = tempfile::tempdir().unwrap();
         let index =
             Arc::new(Index::open(dir.path(), 10 * 1024 * 1024, "Mainnet", genesis.hash()).unwrap());
-        let (mut state, read, _tip, _change) =
+        let zakura_state::InitializedState { mut state, read_state: read, .. } =
             zakura_state::init(Config::ephemeral(), &network, block::Height::MAX, 0).await.unwrap();
         for block in [genesis, block_one] {
             (&mut state)

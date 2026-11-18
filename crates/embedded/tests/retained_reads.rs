@@ -16,7 +16,7 @@ use ztreamer_embedded::InProcessBackend;
 
 #[tokio::test]
 async fn reads_preserve_retained_payloads() {
-    let (mut state, read, _tip, _change) =
+    let zakura_state::InitializedState { mut state, read_state: read, .. } =
         zakura_state::init(Config::ephemeral(), &Network::Mainnet, Height::MAX, 0).await.unwrap();
     let expected: Block = BLOCK_MAINNET_1_BYTES.as_slice().zcash_deserialize_into().unwrap();
     for bytes in [&*BLOCK_MAINNET_GENESIS_BYTES, &*BLOCK_MAINNET_1_BYTES] {
