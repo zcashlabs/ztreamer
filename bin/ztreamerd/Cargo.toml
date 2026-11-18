@@ -3,6 +3,8 @@ name = "ztreamerd"
 version = "0.2.0"
 edition.workspace = true
 repository.workspace = true
+license.workspace = true
+description = "Zcash indexer and light-wallet server with an embedded or remote Zakura node"
 
 [lints]
 workspace = true

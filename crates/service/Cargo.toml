@@ -3,6 +3,8 @@ name = "ztreamer-service"
 version = "0.2.0"
 edition.workspace = true
 repository.workspace = true
+license.workspace = true
+description = "The CompactTxStreamer service of ztreamer and its gRPC transport"
 
 [lints]
 workspace = true

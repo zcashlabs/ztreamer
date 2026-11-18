@@ -3,6 +3,8 @@ name = "ztreamer-index"
 version = "0.2.0"
 edition.workspace = true
 repository.workspace = true
+license.workspace = true
+description = "LMDB storage of ztreamer compact blocks, its write batches and its note commitment trees"
 
 [lints]
 workspace = true

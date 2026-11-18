@@ -3,6 +3,7 @@ name = "ztreamer-daemon"
 version = "0.2.0"
 edition.workspace = true
 repository.workspace = true
+license.workspace = true
 description = "The ztreamer daemon: the node modes, the indexing, the head follower and the servers"
 
 [lints]

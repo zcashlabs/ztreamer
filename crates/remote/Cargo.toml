@@ -3,6 +3,7 @@ name = "ztreamer-remote"
 version = "0.2.0"
 edition.workspace = true
 repository.workspace = true
+license.workspace = true
 description = "Typed JSON-RPC calls to a remote zakura node"
 
 [lints]

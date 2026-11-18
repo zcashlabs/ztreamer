@@ -146,3 +146,7 @@ This benchmark indexed mainnet from genesis to height 3,459,912. It used an M3 U
 ### Serving
 
 `scripts/benchmark-serving.sh` measures a running server: RPC latency, range-size scaling, concurrent requests and compact-block wallet sync. It writes the request samples and the summaries as CSV and JSON. [The benchmark guide](benchmarks/README.md) gives the workloads, the fixtures, and how to compare HEAD with a release.
+
+## License
+
+Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT) at your option.

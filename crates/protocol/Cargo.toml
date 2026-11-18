@@ -3,6 +3,8 @@ name = "ztreamer-protocol"
 version = "0.2.0"
 edition.workspace = true
 repository.workspace = true
+license.workspace = true
+description = "Lightwallet protobuf types, the Replicator service and the Zakura p2p protocol of ztreamer"
 
 [lints]
 workspace = true

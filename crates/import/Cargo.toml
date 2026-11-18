@@ -3,6 +3,7 @@ name = "ztreamer-import"
 version = "0.2.0"
 edition.workspace = true
 repository.workspace = true
+license.workspace = true
 description = "The replica side of replication: fetch, verify and install sealed ranges"
 
 [lints]
