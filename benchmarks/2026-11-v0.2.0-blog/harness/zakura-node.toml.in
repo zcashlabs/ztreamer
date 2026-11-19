@@ -1,0 +1,18 @@
+# zakura for the remote and lightwalletd runs: the archive state, live mainnet peers. The same
+# settings as zakura-embedded.toml.in. The peer cache and identity stay in the benchmark root.
+[network]
+network = "Mainnet"
+listen_addr = "0.0.0.0:18233"
+cache_dir = "@ROOT@/zakura-network"
+identity_dir = "@ROOT@/zakura-identity"
+
+[network.zakura]
+listen_addr = "0.0.0.0:18234"
+
+[state]
+cache_dir = "@ZAKURA_CACHE@"
+delete_old_database = false
+
+[rpc]
+listen_addr = "127.0.0.1:8232"
+enable_cookie_auth = false
