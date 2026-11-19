@@ -1,0 +1,506 @@
+{
+ "intro": {
+  "date": "2026-11-18",
+  "version": "20261118",
+  "eyebrow": "Measured November 18, 2026 · Ryzen 9 9950X3D",
+  "description": "Sync speed, serving latency and throughput, wallet sessions, wallets at once and resource use of ztreamer v0.2.0 (direct and from snapshot), lightwalletd v0.6.2 and zingod v1.1.0 on the same zakura node and machine.",
+  "sub": [
+   [
+    "<strong>ztreamer v0.2.0</strong> (embedded zakura, and from its default snapshot)",
+    ""
+   ],
+   [
+    ", <strong>lightwalletd v0.6.2</strong>",
+    "lw"
+   ],
+   [
+    ", <strong>zingod v1.1.0</strong> (from zakura, and from its snapshot)",
+    "zg"
+   ]
+  ]
+ },
+ "hw": {
+  "cpu": "AMD Ryzen 9 9950X3D · 16 cores / 32 threads · 128 MiB L3",
+  "memory": "60.4 GiB RAM · 32 GiB swap",
+  "disk": "WD_BLACK SN850X 2 TB NVMe · ext4 · index, cache and zakura state on the same disk",
+  "os": "Manjaro Linux · Linux 6.12.112 · x86_64"
+ },
+ "chain": "zakura Mainnet state in format 31 with the fast-sync (VCT) marker restored, brought to the live tip before each run: node tip 3,587,082 at the start of the first run, 3,587,856 at the start of the last",
+ "wallet_tools": "<a href=\"https://github.com/zcashlabs/zcash-walletsync-bench\">zcash-walletsync-bench</a> commit <code>40641f1d68</code>, before its first public commit <code>c2970fe074</code>, which measures the same way (standard <code>suite</code>, default profiles and repetitions, soak off) · cbb commit <code>6dffa2e9ad</code> (50, 100, 150 and 200 wallets, cold and warm pass)",
+ "summary": [
+  [
+   "From an empty index, ztreamer v0.2.0 serves the whole chain after 2.8 minutes when it runs zakura in process, and its note commitment trees reach the tip 2.3 minutes later, at 5.0 minutes. ",
+   ""
+  ],
+  [
+   "lightwalletd v0.6.2 needs 1.41 hours from the same node. ",
+   "lw"
+  ],
+  [
+   "zingod v1.1.0 needs 11.6 minutes from the same node. ",
+   "zg"
+  ],
+  [
+   "From its snapshot, ztreamer serves after 11.6 minutes, limited by the download",
+   ""
+  ],
+  [
+   "; zingod serves after 20.9 minutes from its snapshot, also limited by the download",
+   "zg"
+  ],
+  [
+   ". Once synced, ztreamer serves about 1 M compact blocks/s from 16 clients",
+   ""
+  ],
+  [
+   ", about 4 times the rate of lightwalletd",
+   "lw"
+  ],
+  [
+   ", about the rate of zingod",
+   "zg"
+  ],
+  [
+   ". ",
+   ""
+  ],
+  [
+   "ztreamer has the lowest latency for block ranges and the lowest tail latency under load. ",
+   "any"
+  ],
+  [
+   "zingod answers the most GetTreeState requests under load. ",
+   "zg"
+  ],
+  [
+   "Its first-sync and catch-up sessions in zcash-walletsync-bench are the shortest. ",
+   "zg"
+  ],
+  [
+   "ztreamer serves the most wallets at once in cbb, without errors. ",
+   "any"
+  ],
+  [
+   "ztreamer's index takes 17.7 GiB on disk",
+   ""
+  ],
+  [
+   "; lightwalletd's cache takes 29.0 GiB",
+   "lw"
+  ],
+  [
+   "; zingod's indexes take 66.5 GiB",
+   "zg"
+  ],
+  [
+   ".",
+   ""
+  ],
+  [
+   " With its default configuration, lightwalletd and its node refuse work above about 100 clients.",
+   "lw"
+  ],
+  [
+   " With its default configuration, zingod refuses work above 128 clients from one address.",
+   "zg"
+  ]
+ ],
+ "findings": [
+  [
+   [
+    "<strong>Sync</strong>: ztreamer direct served at 165 s (21,688 blocks/s) and had its trees at the tip at 301 s. ",
+    ""
+   ],
+   [
+    "lightwalletd took 5,059 s. ",
+    "lw"
+   ],
+   [
+    "zingod direct took 698 s. ",
+    "zg"
+   ],
+   [
+    "ztreamer from its snapshot took 695 s: an 18.2 GB import of 409 epochs from <code>snapshot.ztreamer.sh</code>, which ran at about 26 MB/s here. The imported trees were at the tip as soon as the import ended.",
+    ""
+   ],
+   [
+    " zingod from its snapshot took 1,253 s: 44.9 GB downloaded and installed in 20 min 48 s, then the tail from height 3,544,662.",
+    "zg"
+   ]
+  ],
+  [
+   [
+    "<strong>Sync cost</strong>: ztreamer direct used 2,403 CPU seconds with a 9.21 GiB peak RSS; ztreamer from snapshot 2,733 (2,530 for ztreamerd)",
+    ""
+   ],
+   [
+    "; lightwalletd and its node 10,248 (2,444 for lightwalletd)",
+    "lw"
+   ],
+   [
+    "; zingod direct 5,473 (4,589 for zingod); zingod from snapshot 60",
+    "zg"
+   ],
+   [
+    ".",
+    ""
+   ]
+  ],
+  [
+   [
+    "<strong>Wallet download</strong> (every compact block from Sapling activation, 3,145,415 blocks): 22.7 s on ztreamer direct, 22.6 s from snapshot",
+    ""
+   ],
+   [
+    ", 65.0 s on lightwalletd",
+    "lw"
+   ],
+   [
+    ", 23.8 s and 23.3 s on zingod",
+    "zg"
+   ],
+   [
+    ".",
+    ""
+   ]
+  ],
+  [
+   [
+    "<strong>Ranges</strong>: the median 10,000-block GetBlockRange takes 4.7 ms on ztreamer direct",
+    ""
+   ],
+   [
+    ", 107 ms on lightwalletd",
+    "lw"
+   ],
+   [
+    ", 8.4 ms on zingod direct",
+    "zg"
+   ],
+   [
+    ". The median 10-block range takes 39 µs on ztreamer direct",
+    ""
+   ],
+   [
+    ", 296 µs on lightwalletd",
+    "lw"
+   ],
+   [
+    ", 139 µs on zingod direct",
+    "zg"
+   ],
+   [
+    ".",
+    ""
+   ]
+  ],
+  [
+   [
+    "<strong>GetTreeState</strong>: the median sequential request takes 57 µs on ztreamer direct",
+    ""
+   ],
+   [
+    ", 222 ms on lightwalletd, which asks zakurad for each tree state",
+    "lw"
+   ],
+   [
+    ", 150 µs on zingod direct",
+    "zg"
+   ],
+   [
+    ". With 64 ghz workers, ztreamer answers 99,153 requests/s",
+    ""
+   ],
+   [
+    ", lightwalletd 36",
+    "lw"
+   ],
+   [
+    ", zingod 124,753",
+    "zg"
+   ],
+   [
+    ".",
+    ""
+   ]
+  ],
+  [
+   [
+    "<strong>Concurrency</strong>: with 10,000-block requests at 64 clients, ztreamer direct serves 1.04 M blocks/s with a 3.2 s p99",
+    ""
+   ],
+   [
+    ", lightwalletd 0.27 M with an 18.0 s p99",
+    "lw"
+   ],
+   [
+    ", zingod direct 1.03 M with a 7.5 s p99",
+    "zg"
+   ],
+   [
+    ".",
+    ""
+   ],
+   [
+    " With 100-block requests, lightwalletd failed some requests at 128 and 256 clients.",
+    "lw"
+   ],
+   [
+    " At 128 and 256 clients zingod refused connections, so those levels failed.",
+    "zg"
+   ]
+  ],
+  [
+   [
+    "<strong>Wallet sessions</strong> (zcash-walletsync-bench, median): a first sync of 10,000 blocks with the vizor profile took 0.45 s on ztreamer",
+    ""
+   ],
+   [
+    ", 0.72 s on lightwalletd",
+    "lw"
+   ],
+   [
+    ", 0.32 s on zingod",
+    "zg"
+   ],
+   [
+    ". The transparent session took 0.31 s on ztreamer",
+    ""
+   ],
+   [
+    ", 1.64 s on lightwalletd",
+    "lw"
+   ],
+   [
+    ", 1.04 s on zingod",
+    "zg"
+   ],
+   [
+    ". A one-week catch-up took 0.20 to 0.23 s on every server.",
+    ""
+   ]
+  ],
+  [
+   [
+    "<strong>Wallets at once</strong> (cbb, warm pass, 200 wallets, with GetTreeState): ztreamer 5,640 successful requests/s and no errors",
+    ""
+   ],
+   [
+    "; lightwalletd 219/s, with 1,270 errors",
+    "lw"
+   ],
+   [
+    "; zingod 4,115/s, with 7,773 of 12,000 requests refused",
+    "zg"
+   ],
+   [
+    ". BlockRange only: 5,207/s on ztreamer",
+    ""
+   ],
+   [
+    ", 1,097/s on lightwalletd",
+    "lw"
+   ],
+   [
+    ", 3,363/s on zingod, with 8,840 of 10,000 refused",
+    "zg"
+   ],
+   [
+    ".",
+    ""
+   ]
+  ],
+  [
+   [
+    "<strong>Disk and restart</strong>: ztreamer's index takes 17.7 GiB",
+    ""
+   ],
+   [
+    ", lightwalletd's cache 29.0 GiB",
+    "lw"
+   ],
+   [
+    ", zingod's indexes 66.5 GiB",
+    "zg"
+   ],
+   [
+    ". A restart to serving takes 46 s on ztreamer direct, which opens the embedded zakura, and 2.1 s on ztreamer from snapshot",
+    ""
+   ],
+   [
+    "; 1.1 s on lightwalletd",
+    "lw"
+   ],
+   [
+    "; 2.1 to 3.2 s on zingod",
+    "zg"
+   ],
+   [
+    ".",
+    ""
+   ]
+  ]
+ ],
+ "labels": [
+  "<strong>ztreamer direct</strong>: <code>ztreamerd --zakura-config</code>, empty index. The zakura node runs in the ztreamerd process and the index reads its state directly. After the block sync, ztreamer builds its note commitment trees.",
+  "<strong>ztreamer snapshot</strong>: <code>ztreamerd --remote-rpc</code> against the standalone zakurad, empty index. It imports the sealed ranges and their tree rows from the default snapshot source, <code>https://snapshot.ztreamer.sh/mainnet</code>, has the node attest them, and then reads the tail over JSON-RPC.",
+  [
+   [
+    "<strong>lightwalletd</strong>: v0.6.2 against the standalone zakurad over JSON-RPC, with <code>--no-tls-very-insecure</code> and default limits. It builds its compact-block cache from genesis.",
+    "lw"
+   ]
+  ],
+  [
+   [
+    "<strong>zingod direct</strong>: v1.1.0 with the <code>generate-config</code> defaults and the standalone zakurad as its one trusted validator (<code>legacy_rpc</code>), empty data directory. It builds every index from the node.",
+    "zg"
+   ]
+  ],
+  [
+   [
+    "<strong>zingod snapshot</strong>: as zingod direct, with <code>[snapshot] manifest = \"https://snapshots.zingolabs.dev/zingod-snapshot-1.0.0/manifest.json\"</code> (height 3,544,662). It installs the snapshot, then syncs the tail from the node.",
+    "zg"
+   ]
+  ]
+ ],
+ "caveats": [
+  [
+   "One run of each server. The client shared the host with the server, and other work ran on the host: the load average at the start of the runs was between 2.1 and 17.4, mostly from the previous run, because the runs went back to back. The runs went in the order of the tables, so the page cache held whatever the previous run had read. The node followed the live chain, so its tip moved between runs (3,587,082 to 3,587,856), but every historical request was in the fixed interval. The zakura state comes from an earlier benchmark on this host, with its fast-sync (VCT) marker restored; that benchmark had removed the marker for a frontier test. Every run reused this one state, upgraded once to format 31. No pristine copy was restored before each run, because the disk could not hold a second copy, so the state followed the tip from run to run. While ztreamer direct built its trees, a helper binary of the harness compiled at nice 19. The soak scenario of zcash-walletsync-bench was dropped after the first wallet run; its tip-follow scenario stayed.",
+   ""
+  ],
+  [
+   " The snapshot manifest URL in the zingod README (<code>/mainnet/manifest.json</code>) returned 404, so the run used the published 1.0.0 manifest.",
+   "zg"
+  ],
+  [
+   " The second drive was not mounted, so no index was moved off the system disk. The throughput of ghz for streaming RPCs is limited by ghz itself; the native suite gives the server limits.",
+   ""
+  ]
+ ],
+ "sync_text": [
+  [
+   "ztreamer direct is the only server that reads the node state in process: it read 386 GiB from disk in 165 s. ",
+   ""
+  ],
+  [
+   "The sync of ",
+   "any"
+  ],
+  [
+   "lightwalletd",
+   "lw"
+  ],
+  [
+   " and ",
+   "lw zg"
+  ],
+  [
+   "zingod direct",
+   "zg"
+  ],
+  [
+   " goes through the JSON-RPC of the node. ",
+   "any"
+  ],
+  [
+   "The ztreamer snapshot run is bound by the download: it imported 18.2 GB in 692 s",
+   ""
+  ],
+  [
+   "; so is the zingod snapshot run, which downloaded and installed 44.9 GB in 20 min 48 s",
+   "zg"
+  ],
+  [
+   ". An earlier run on this host imported the same snapshot at about 54 MB/s; here the import ran at about 26 MB/s. The trees phase of ztreamer direct is the time from the end of the block sync until the trees of the index reach its durable tip.",
+   ""
+  ]
+ ],
+ "snapshot_text": [
+  [
+   "A snapshot run starts from a published snapshot and then follows the standalone zakurad. ztreamer's snapshot carries the sealed ranges and their tree rows, so its trees are at the tip as soon as the import is done. ",
+   ""
+  ],
+  [
+   "zingod's snapshot carries all six indexes up to height 3,544,662, and zingod syncs the remaining tail from the node. ",
+   "zg"
+  ],
+  [
+   "On this host and network, a direct sync was faster than a snapshot: 165 s against 695 s for ztreamer",
+   ""
+  ],
+  [
+   ", and 698 s against 1,253 s for zingod",
+   "zg"
+  ],
+  [
+   ". A snapshot reads much less from disk and needs no local node state up front. Once synced, the snapshot runs serve at the speed of the direct runs.",
+   ""
+  ]
+ ],
+ "resource_text": [
+  [
+   "ztreamer serves blocks from memory-mapped files",
+   ""
+  ],
+  [
+   ", and so does zingod",
+   "zg"
+  ],
+  [
+   ". Its RSS under load is mostly file-backed pages of the index, which the kernel can drop.",
+   ""
+  ],
+  [
+   " lightwalletd keeps a small heap, but in the 10,000-block concurrency suite it spends 8 to 10 times more CPU for each block it serves than ztreamer.",
+   "lw"
+  ]
+ ],
+ "restart_text": "Restart: stop the server after its run, start it on the same index, and time it until it serves a request. ztreamer direct also opens the embedded zakura state, which takes most of its 46 s.",
+ "serving_text": [
+  [
+   "lightwalletd is slower than ztreamer on block ranges and on GetTreeState, which it forwards to zakurad. ",
+   "lw"
+  ],
+  [
+   "ztreamer and zingod are close on bulk block serving. ztreamer is faster on block ranges and GetBlock and has the lower tail latency under load; zingod is faster on GetSubtreeRoots and answers more GetTreeState requests under load.",
+   "zg"
+  ]
+ ],
+ "concurrency_note": [
+  [
+   "zingod's connection limit is per client address. Its default <code>max_connections_per_ip</code> is 128, and every client of this benchmark connects from 127.0.0.1, so a level of 128 or more clients goes over it. Real deployments spread wallets over many addresses.",
+   "zg"
+  ],
+  [
+   " lightwalletd answered \"too many requests being received at once; retry shortly\" at 128 and 256 clients.",
+   "lw"
+  ]
+ ],
+ "cbb_text": "cbb starts N wallets at once, each on its own connection, and has each wallet fetch 50 GetBlockRange of 100 blocks from height 2,000,000. In tree mode each wallet also asks GetTreeState every 5 ranges; BlockRange-only mode skips that. Each level runs a cold pass and then a warm pass. \"ok req/s\" counts successful requests only. Each level takes a few seconds, so these numbers vary more than those of the native suite.",
+ "errors": [
+  [
+   [
+    "<strong>zingod, 128 and 256 clients</strong> (serving suite, both request sizes, all four zingod runs): the warmup failed with <code>transport error</code>, so these levels have no throughput. At the same time the zingod log counts refused connections, for example <code>level=warn message=Serving rps=86638.98 conns=64 conns_refused=673 component=Grpc</code>. The default <code>max_connections_per_ip</code> of zingod 1.1.0 is 128 (<code>packages/zingod-grpc/src/limits.rs</code>). In ghz at 256 workers, zingod direct failed 2,065,839 GetTreeState requests and 2,262,202 GetLatestBlock requests, with log lines such as <code>refused=2852988 at_capacity=2852988 conns_refused=676</code>.",
+    "zg"
+   ]
+  ],
+  [
+   [
+    "<strong>zingod, cbb</strong>: from 100 wallets in BlockRange-only mode and from 150 in tree mode, zingod answered <code>Unavailable: work stream limit reached</code> with <code>grpc-retry-pushback-ms: 250</code>. Errors in the warm pass: 3,087 of 5,000 requests at 100 wallets, 5,785 of 7,500 at 150 and 8,840 of 10,000 at 200 (BlockRange only); 1,320 of 9,000 at 150 and 7,773 of 12,000 at 200 (tree mode).",
+    "zg"
+   ]
+  ],
+  [
+   [
+    "<strong>lightwalletd</strong>: the 100-block concurrency suite failed at 128 and 256 clients, with 20 and 138 errors of the form <code>too many requests being received at once; retry shortly</code>. In cbb's tree mode, GetTreeState failed with <code>z_gettreestate failed: status code: 429, response: \"Too many connections...</code> from zakurad from 100 wallets on: 25, 638 and 1,270 errors in the warm passes at 100, 150 and 200 wallets. In ghz at 256 workers, lightwalletd failed 525,734 GetTreeState requests and 14,095 GetLatestBlock requests.",
+    "lw"
+   ]
+  ],
+  "<strong>ztreamer</strong>: 264 of about 84 million ghz requests over both ztreamer runs failed with <code>Unavailable: serving snapshot generation N does not match LMDB generation N+1</code>, which ztreamer returns when a new block is committed while it serves the request. Per ghz file: ztreamer direct GetSubtreeRoots at 256 workers 102, GetBlockNullifiers at 256 workers 85, at 64 workers 12 and at 1 worker 1, GetBlock at 16 workers 2; ztreamer snapshot GetSubtreeRoots at 64 workers 40, GetTreeState at 256 workers 19 and at 16 workers 3. There was no <code>MDB_READERS_FULL</code> in any run.",
+  "<strong>All servers, ghz</strong>: each ghz level ends with a few errors of the form <code>use of closed network connection</code>, one for each worker that was still reading when ghz closed its connections.",
+  "<strong>Harness</strong>: in the first wallet run (ztreamer direct), the soak scenario of zcash-walletsync-bench was stopped with SIGTERM (exit code 143), and its summary was rebuilt from the raw files with its <code>report</code> command. After that run, an exit status in the offload helper stopped <code>run-all.sh</code>; the outputs of the run were complete, so it was marked done and the remaining runs went on. The <code>trees_height</code> column of ztreamer direct's <code>resources.csv</code> is empty, because the helper that reads it was built during that run. The node tip at the start of each run comes from <code>run-all.log</code> (<code>node-tip-start.txt</code> in each run directory), because <code>record_env</code> had read it before the node started."
+ ],
+ "data_links": "<a href=\"benchmarks/2026-11-18/data/summary.csv\">All scenario summaries</a> · <a href=\"benchmarks/2026-11-18/data/samples.csv\">Request samples</a> · <a href=\"benchmarks/2026-11-18/data/ghz.csv\">ghz results</a> · <a href=\"benchmarks/2026-11-18/data/wallet.csv\">zcash-walletsync-bench and cbb</a> · <a href=\"benchmarks/2026-11-18/data/resources.csv\">Resource samples</a> · <a href=\"benchmarks/2026-11-18/data/disk.csv\">Index sizes</a> · <a href=\"benchmarks/2026-11-18/data/phases.csv\">Phases</a> · <a href=\"benchmarks/2026-11-18/numbers.json\">All numbers</a>. The September 2026 benchmark, ztreamer v0.1.0 against v0.0.1, is on <a href=\"benchmarks-2026-09.html\">its own page</a>.",
+ "data_links_md": "Site page: `site/benchmarks.html`. Data: `site/benchmarks/2026-11-18/` (summary.csv, samples.csv, ghz.csv, wallet.csv, resources.csv, disk.csv, phases.csv, numbers.json, SVG and PNG plots). Harness: `benchmarks/2026-11-v0.2.0-blog/harness/` (run-all.sh, run-main.sh, run-restart.sh, run-wallet.sh, serve.sh, sample.py, report.py, page.py) and `meta.json`. Full run directories with every log and the raw zcash-walletsync-bench (in lwb/) and cbb output: `~/bench-2026-11/blog/runs/` (five labels, their -restart runs, and the -wallet runs of ztreamer-direct, lightwalletd and zingod-direct).",
+ "lwb_text": "<a href=\"https://github.com/zcashlabs/zcash-walletsync-bench\">zcash-walletsync-bench</a> replays wallet sessions with the request patterns of real wallets (the vizor, zingo and librustzcash profiles): app open, catch-up after an hour, a day and a week, first sync of 1,000 to 50,000 blocks, transaction enhancement, transparent queries and a mixed session. Zcash Labs, which also makes ztreamer, maintains it. It ran its standard suite against each server alone over loopback, with the default repetitions. The soak scenario was off. The times are medians, with the 95 % confidence interval of the median. Some sessions take the same time on every server, for example 0.20 s for enhance and 4.0 s for mixed, because the wallet profile sets their pace."
+}

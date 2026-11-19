@@ -1,0 +1,34 @@
+# zingod for the benchmark: the defaults of `zingod generate-config` (v1.1.0), with the standalone
+# zakurad as its one trusted validator, the gRPC listener on the port of the other servers, and
+# every index under the run directory. Plaintext gRPC, as zingod sets on a loopback address.
+network = "mainnet"
+validator_client = "legacy_rpc"
+
+[metrics]
+listen_address = "127.0.0.1:9998"
+
+[[trusted_validators]]
+jsonrpc_address = "127.0.0.1:8232"
+
+[serve]
+grpc_listen_address = "127.0.0.1:9067"
+state_dir = "@DATA@/state"
+
+[p2p]
+enabled = false
+cache_dir = "@DATA@/peers"
+
+[index.compact_block]
+path = "@DATA@/indexes/compact_block"
+
+[index.block_hash]
+path = "@DATA@/indexes/block_hash"
+
+[index.tree_state]
+path = "@DATA@/indexes/tree_state"
+
+[index.transparent_address]
+path = "@DATA@/indexes/transparent_address"
+
+[index.txid_location]
+path = "@DATA@/indexes/txid_location"
